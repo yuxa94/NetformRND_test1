@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POUR AI — 관리자 대시보드</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F4FF;color:#1E293B;min-height:100vh;}
+:root{--blue:#2563EB;--blue-light:#EFF6FF;--border:#E2E8F0;--card:#fff;--text:#1E293B;--sub:#64748B;}
+
+/* Header */
+.hdr{background:var(--blue);color:white;padding:16px 24px;display:flex;align-items:center;gap:12px;}
+.hdr-logo{font-size:18px;font-weight:800;letter-spacing:-.5px;}
+.hdr-title{font-size:14px;opacity:.8;}
+.hdr-nav{margin-left:auto;display:flex;gap:12px;}
+.hdr-nav a{color:rgba(255,255,255,.75);text-decoration:none;font-size:13px;font-weight:500;padding:6px 14px;border-radius:8px;transition:.2s;}
+.hdr-nav a:hover{background:rgba(255,255,255,.15);color:white;}
+
+/* Layout */
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px;}
+
+/* Filter bar */
+.filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px;align-items:center;}
+.filters select,.filters button{height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--border);font-size:13px;font-family:inherit;background:white;cursor:pointer;color:var(--text);}
+.filters button{background:var(--blue);color:white;border-color:var(--blue);font-weight:700;}
+.filters button:hover{background:#1D4ED8;}
+
+/* Summary cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:24px;}
+.card{background:var(--card);border-radius:16px;padding:20px;border:1px solid var(--border);}
+.card-label{font-size:12px;color:var(--sub);font-weight:600;margin-bottom:8px;}
+.card-value{font-size:32px;font-weight:800;color:var(--blue);}
+.card-value.danger{color:#EF4444;}
+
+/* Chart grid */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+@media(max-width:640px){.chart-grid{grid-template-columns:1fr;}}
+.chart-card{background:var(--card);border-radius:16px;padding:20px;border:1px solid var(--border);}
+.chart-card.full{grid-column:1/-1;}
+.chart-title{font-size:13px;font-weight:700;color:var(--sub);margin-bottom:16px;}
+.chart-wrap{position:relative;height:220px;}
+
+/* Empty state */
+.empty{text-align:center;padding:60px 20px;color:var(--sub);font-size:14px;}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="hdr-logo">POUR AI</div>
+  <div class="hdr-title">관리자 대시보드</div>
+  <nav class="hdr-nav">
+    <a href="/admin">관리자 대시보드</a>
+    <a href="/consult">상담원 조회</a>
+  </nav>
+</div>
+
+<div class="wrap">
+  <!-- Filters -->
+  <div class="filters">
+    <select id="f-year"></select>
+    <select id="f-period">
+      <option value="year">연도 전체</option>
+      <option value="q1">1분기 (1~3월)</option>
+      <option value="q2">2분기 (4~6월)</option>
+      <option value="q3">3분기 (7~9월)</option>
+      <option value="q4">4분기 (10~12월)</option>
+      <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option>
+      <option value="4">4월</option><option value="5">5월</option><option value="6">6월</option>
+      <option value="7">7월</option><option value="8">8월</option><option value="9">9월</option>
+      <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+    </select>
+    <select id="f-material">
+      <option value="전체">자재 전체</option>
+      <option value="금속기와">금속기와</option>
+      <option value="아스팔트슁글">아스팔트슁글</option>
+      <option value="기타">기타</option>
+    </select>
+    <button onclick="loadStats()">조회</button>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">총 분석 건수</div>
+      <div class="card-value" id="c-total">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">위험·높음 건수</div>
+      <div class="card-value danger" id="c-danger">—</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-title">분석 건수 추이</div>
+      <div class="chart-wrap"><canvas id="ch-trend"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">자재 유형별 비율</div>
+      <div class="chart-wrap"><canvas id="ch-material"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">하자 코드별 분포</div>
+      <div class="chart-wrap"><canvas id="ch-defect"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFECT_LABELS = {
+  DL:'탈락(DL)', LE:'누수(LE)', CR:'균열(CR)', PE:'박리(PE)', BL:'부풀음(BL)',
+  TE:'열화(TE)', DR:'변색(DR)', ST:'오염(ST)', CO:'부식(CO)', SL:'침하(SL)', CL:'막힘(CL)'
+};
+
+let trendChart, materialChart, defectChart;
+
+function buildFilters() {
+  const yearSel = document.getElementById('f-year');
+  const now = new Date().getFullYear();
+  for (let y = now; y >= now - 3; y--) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y + '년';
+    if (y === now) o.selected = true;
+    yearSel.appendChild(o);
+  }
+}
+
+function getParams() {
+  const year = document.getElementById('f-year').value;
+  const period = document.getElementById('f-period').value;
+  const material = document.getElementById('f-material').value;
+  const params = new URLSearchParams({ year, material });
+  if (period === 'year') { /* no month/quarter */ }
+  else if (period.startsWith('q')) params.set('quarter', period[1]);
+  else params.set('month', period);
+  return params;
+}
+
+function destroyChart(c) { if (c) c.destroy(); }
+
+function loadStats() {
+  fetch('/api/stats?' + getParams())
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('c-total').textContent = data.total ?? 0;
+      document.getElementById('c-danger').textContent = data.danger ?? 0;
+
+      const period = document.getElementById('f-period').value;
+      const trendData = period === 'year' ? data.monthly : data.daily;
+      const trendLabels = trendData.map(d => d.month || d.day);
+      const trendCounts = trendData.map(d => d.count);
+
+      destroyChart(trendChart);
+      trendChart = new Chart(document.getElementById('ch-trend'), {
+        type: 'bar',
+        data: {
+          labels: trendLabels.length ? trendLabels : ['데이터 없음'],
+          datasets: [{
+            label: '분석 건수',
+            data: trendCounts.length ? trendCounts : [0],
+            backgroundColor: 'rgba(37,99,235,.7)',
+            borderRadius: 6,
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+      });
+
+      // Material pie
+      const matLabels = data.material_breakdown.map(m => m.material || '기타');
+      const matCounts = data.material_breakdown.map(m => m.count);
+      destroyChart(materialChart);
+      materialChart = new Chart(document.getElementById('ch-material'), {
+        type: 'doughnut',
+        data: {
+          labels: matLabels.length ? matLabels : ['데이터 없음'],
+          datasets: [{ data: matCounts.length ? matCounts : [1],
+            backgroundColor: ['#2563EB','#60A5FA','#BFDBFE','#93C5FD'],
+            borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+      });
+
+      // Defect bar
+      const defLabels = data.defect_breakdown.map(d => DEFECT_LABELS[d.code] || d.code || '기타');
+      const defCounts = data.defect_breakdown.map(d => d.count);
+      destroyChart(defectChart);
+      defectChart = new Chart(document.getElementById('ch-defect'), {
+        type: 'bar',
+        data: {
+          labels: defLabels.length ? defLabels : ['데이터 없음'],
+          datasets: [{
+            label: '건수',
+            data: defCounts.length ? defCounts : [0],
+            backgroundColor: '#60A5FA',
+            borderRadius: 6,
+          }]
+        },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+      });
+    })
+    .catch(e => console.error(e));
+}
+
+buildFilters();
+loadStats();
+</script>
+</body>
+</html>

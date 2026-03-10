@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# DB & uploads
+data.db
+uploads/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

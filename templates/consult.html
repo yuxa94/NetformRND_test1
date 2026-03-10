@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POUR AI — 상담원 조회</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F4FF;color:#1E293B;min-height:100vh;}
+:root{--blue:#2563EB;--blue-light:#EFF6FF;--border:#E2E8F0;--card:#fff;--text:#1E293B;--sub:#64748B;--red:#EF4444;}
+
+/* Header */
+.hdr{background:var(--blue);color:white;padding:16px 24px;display:flex;align-items:center;gap:12px;}
+.hdr-logo{font-size:18px;font-weight:800;letter-spacing:-.5px;}
+.hdr-title{font-size:14px;opacity:.8;}
+.hdr-nav{margin-left:auto;display:flex;gap:12px;}
+.hdr-nav a{color:rgba(255,255,255,.75);text-decoration:none;font-size:13px;font-weight:500;padding:6px 14px;border-radius:8px;transition:.2s;}
+.hdr-nav a:hover{background:rgba(255,255,255,.15);color:white;}
+
+/* Layout — two columns on desktop */
+.layout{display:grid;grid-template-columns:360px 1fr;gap:16px;max-width:1120px;margin:0 auto;padding:24px 20px;align-items:start;}
+@media(max-width:760px){.layout{grid-template-columns:1fr;}}
+
+/* Left panel */
+.panel-card{background:var(--card);border-radius:16px;border:1px solid var(--border);overflow:hidden;}
+.panel-hdr{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.panel-hdr-title{font-size:13px;font-weight:700;color:var(--text);}
+.panel-total{font-size:12px;color:var(--sub);}
+
+/* Search bar */
+.search-wrap{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;}
+.search-input{flex:1;height:38px;padding:0 12px;border-radius:10px;border:1.5px solid var(--border);font-size:13px;font-family:inherit;color:var(--text);outline:none;transition:.2s;}
+.search-input:focus{border-color:var(--blue);}
+.search-btn{height:38px;padding:0 14px;background:var(--blue);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;}
+
+/* Code search row */
+.code-wrap{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;}
+.code-input{flex:1;height:38px;padding:0 12px;border-radius:10px;border:1.5px solid var(--border);font-size:13px;font-family:inherit;color:var(--text);outline:none;transition:.2s;letter-spacing:.5px;}
+.code-input:focus{border-color:var(--blue);}
+.code-label{font-size:10px;font-weight:700;color:var(--sub);padding:0 14px 6px;margin-top:10px;display:block;}
+
+/* List */
+.list{max-height:calc(100vh - 260px);overflow-y:auto;}
+.list-item{padding:14px 18px;border-bottom:1px solid var(--border);cursor:pointer;transition:.15s;}
+.list-item:last-child{border-bottom:none;}
+.list-item:hover{background:#F8FAFC;}
+.list-item.active{background:var(--blue-light);}
+.li-code{font-size:12px;font-weight:700;color:var(--blue);margin-bottom:3px;}
+.li-date{font-size:11px;color:var(--sub);margin-bottom:5px;}
+.li-row{display:flex;gap:5px;flex-wrap:wrap;}
+.li-badge{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;}
+.li-badge.blue{background:var(--blue-light);color:var(--blue);}
+.li-badge.danger{background:#FEF2F2;color:var(--red);}
+.li-badge.warn{background:#FFFBEB;color:#D97706;}
+.li-badge.gray{background:#F1F5F9;color:var(--sub);}
+.li-summary{font-size:12px;color:var(--sub);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.list-empty{padding:32px;text-align:center;color:var(--sub);font-size:13px;}
+
+/* Pagination */
+.pagination{padding:10px 14px;display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);}
+.pg-btn{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:white;font-size:12px;cursor:pointer;color:var(--text);}
+.pg-btn:disabled{opacity:.4;cursor:default;}
+.pg-btn:hover:not(:disabled){border-color:var(--blue);color:var(--blue);}
+.pg-info{font-size:12px;color:var(--sub);margin-left:auto;}
+
+/* Right panel — detail */
+.detail-empty{background:var(--card);border-radius:16px;border:1px solid var(--border);padding:60px 20px;text-align:center;color:var(--sub);font-size:14px;}
+.sec-card{background:var(--card);border-radius:16px;padding:20px;border:1px solid var(--border);margin-bottom:14px;}
+.sec-title{font-size:12px;font-weight:700;color:var(--sub);margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px;}
+.diag-code{font-size:22px;font-weight:800;color:var(--blue);margin-bottom:4px;}
+.diag-date{font-size:12px;color:var(--sub);margin-bottom:12px;}
+.badge-row{display:flex;flex-wrap:wrap;gap:6px;}
+.badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:var(--blue-light);color:var(--blue);}
+.badge.danger{background:#FEF2F2;color:var(--red);}
+.badge.warn{background:#FFFBEB;color:#D97706;}
+.img-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.img-box{border-radius:12px;overflow:hidden;background:#F8FAFC;border:1px solid var(--border);aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;}
+.img-box img{width:100%;height:100%;object-fit:cover;}
+.img-label{font-size:11px;color:var(--sub);margin-top:6px;text-align:center;}
+.img-placeholder{color:var(--sub);font-size:12px;}
+.row{display:flex;padding:10px 0;border-bottom:1px solid var(--border);gap:12px;}
+.row:last-child{border-bottom:none;}
+.row-l{min-width:90px;font-size:12px;font-weight:600;color:var(--sub);}
+.row-r{font-size:13px;color:var(--text);flex:1;}
+.rsk-bar{height:8px;background:#E2E8F0;border-radius:99px;overflow:hidden;margin-top:6px;}
+.rsk-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#FCA5A5,#EF4444);}
+.notes-textarea{width:100%;min-height:90px;padding:12px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:inherit;color:var(--text);resize:vertical;outline:none;transition:.2s;}
+.notes-textarea:focus{border-color:var(--blue);}
+.notes-btn{margin-top:10px;height:38px;padding:0 18px;background:var(--blue);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;}
+.notes-saved{font-size:12px;color:#16A34A;margin-left:10px;display:none;}
+.err{background:#FEF2F2;color:var(--red);border-radius:12px;padding:12px 16px;font-size:13px;margin-bottom:14px;display:none;}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="hdr-logo">POUR AI</div>
+  <div class="hdr-title">상담원 조회</div>
+  <nav class="hdr-nav">
+    <a href="/admin">관리자 대시보드</a>
+    <a href="/consult">상담원 조회</a>
+  </nav>
+</div>
+
+<div class="layout">
+  <!-- LEFT: list + search -->
+  <div>
+    <div class="panel-card">
+      <div class="panel-hdr">
+        <div class="panel-hdr-title">분석 이력</div>
+        <div class="panel-total" id="list-total"></div>
+      </div>
+
+      <!-- 키워드 검색 -->
+      <div class="search-wrap">
+        <input class="search-input" id="kw-input" placeholder="코드·하자코드·요약 검색"
+          onkeydown="if(event.key==='Enter') searchList()">
+        <button class="search-btn" onclick="searchList()">검색</button>
+      </div>
+
+      <!-- 진단코드 직접 조회 -->
+      <span class="code-label">진단코드 직접 입력</span>
+      <div class="code-wrap">
+        <input class="code-input" id="code-input" placeholder="AI-YYYYMMDD-XXXX"
+          onkeydown="if(event.key==='Enter') lookupByCode()">
+        <button class="search-btn" onclick="lookupByCode()">조회</button>
+      </div>
+
+      <div class="list" id="list-body"></div>
+
+      <div class="pagination">
+        <button class="pg-btn" id="pg-prev" onclick="changePage(-1)" disabled>이전</button>
+        <button class="pg-btn" id="pg-next" onclick="changePage(1)">다음</button>
+        <span class="pg-info" id="pg-info"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: detail -->
+  <div id="detail-area">
+    <div class="detail-empty">← 왼쪽 목록에서 항목을 선택하거나<br>진단코드를 직접 입력하세요</div>
+  </div>
+</div>
+
+<script>
+const URGENCY_CLS = { '위험': 'danger', '높음': 'warn' };
+const PAGE_SIZE = 20;
+let currentPage = 0;
+let currentSearch = '';
+let currentCode = '';
+
+// ── List ─────────────────────────────────────────
+function searchList() {
+  currentSearch = document.getElementById('kw-input').value.trim();
+  currentPage = 0;
+  loadList();
+}
+
+function changePage(dir) {
+  currentPage += dir;
+  loadList();
+}
+
+function loadList() {
+  const offset = currentPage * PAGE_SIZE;
+  const params = new URLSearchParams({ limit: PAGE_SIZE, offset, search: currentSearch });
+  fetch('/api/analyses?' + params)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('list-total').textContent = `총 ${data.total}건`;
+      const body = document.getElementById('list-body');
+      if (!data.items.length) {
+        body.innerHTML = '<div class="list-empty">결과가 없습니다</div>';
+      } else {
+        body.innerHTML = data.items.map(item => {
+          const urgCls = URGENCY_CLS[item.urgency] || 'gray';
+          const date = item.created_at ? item.created_at.slice(0, 16).replace('T', ' ') : '';
+          return `
+            <div class="list-item" onclick="loadDetail('${item.diagnosis_code}')" id="li-${item.diagnosis_code}">
+              <div class="li-code">${item.diagnosis_code}</div>
+              <div class="li-date">${date}</div>
+              <div class="li-row">
+                ${item.defect_code ? `<span class="li-badge blue">${item.defect_code}</span>` : ''}
+                ${item.material_type ? `<span class="li-badge gray">${item.material_type}</span>` : ''}
+                ${item.urgency ? `<span class="li-badge ${urgCls}">${item.urgency}</span>` : ''}
+              </div>
+              ${item.summary ? `<div class="li-summary">${item.summary}</div>` : ''}
+            </div>`;
+        }).join('');
+      }
+      // Pagination
+      const totalPages = Math.ceil(data.total / PAGE_SIZE);
+      document.getElementById('pg-prev').disabled = currentPage === 0;
+      document.getElementById('pg-next').disabled = currentPage >= totalPages - 1;
+      document.getElementById('pg-info').textContent = `${currentPage + 1} / ${totalPages || 1}`;
+    });
+}
+
+// ── Code direct lookup ────────────────────────────
+function lookupByCode() {
+  const code = document.getElementById('code-input').value.trim().toUpperCase();
+  if (!code) return;
+  loadDetail(code);
+}
+
+// ── Detail ────────────────────────────────────────
+function loadDetail(code) {
+  currentCode = code;
+
+  // Highlight active item
+  document.querySelectorAll('.list-item').forEach(el => el.classList.remove('active'));
+  const activeEl = document.getElementById('li-' + code);
+  if (activeEl) activeEl.classList.add('active');
+
+  fetch('/api/lookup/' + encodeURIComponent(code))
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('detail-area').innerHTML =
+          `<div class="err" style="display:block">${data.error}</div>`;
+        return;
+      }
+      renderDetail(data);
+    });
+}
+
+function renderDetail(d) {
+  const rpt = d.report || {};
+  const cm  = d.construction_method || {};
+  const urgency = rpt.urgency || d.urgency || '';
+  const urgCls = URGENCY_CLS[urgency] || '';
+
+  const setImg = (b64) => b64
+    ? `<img src="data:image/png;base64,${b64}" alt="이미지">`
+    : `<span class="img-placeholder">없음</span>`;
+
+  const cmSection = (cm.method_name && cm.method_name !== 'N/A') ? `
+    <div class="sec-card">
+      <div class="sec-title">추천 보수 공법</div>
+      <div class="row"><div class="row-l">공법명</div><div class="row-r">${cm.method_name || ''}</div></div>
+      <div class="row"><div class="row-l">핵심 구성</div><div class="row-r">${cm.core_composition || ''}</div></div>
+      <div class="row"><div class="row-l">주요 용도</div><div class="row-r">${cm.main_use || ''}</div></div>
+    </div>` : '';
+
+  const risk = rpt.risk_percentage;
+  const date = d.created_at ? d.created_at.slice(0, 16).replace('T', ' ') : '';
+
+  document.getElementById('detail-area').innerHTML = `
+    <div class="sec-card">
+      <div class="diag-code">${d.diagnosis_code}</div>
+      <div class="diag-date">${date}</div>
+      <div class="badge-row">
+        ${d.defect_code ? `<span class="badge">${d.defect_code}</span>` : ''}
+        ${d.material_type ? `<span class="badge">${d.material_type}</span>` : ''}
+        ${urgency ? `<span class="badge ${urgCls}">${urgency}</span>` : ''}
+      </div>
+    </div>
+
+    <div class="sec-card">
+      <div class="sec-title">분석 이미지</div>
+      <div class="img-row">
+        <div>
+          <div class="img-box">${setImg(d.original_image_b64)}</div>
+          <div class="img-label">원본 이미지</div>
+        </div>
+        <div>
+          <div class="img-box">${setImg(d.repaired_image_b64)}</div>
+          <div class="img-label">AI 보수 예상</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-card">
+      <div class="sec-title">분석 요약</div>
+      <div class="row"><div class="row-l">요약</div><div class="row-r">${d.summary || ''}</div></div>
+      <div class="row"><div class="row-l">긴급도</div><div class="row-r">${urgency}</div></div>
+      <div class="row"><div class="row-l">신뢰도</div><div class="row-r">${rpt.confidence ? rpt.confidence + '%' : ''}</div></div>
+      <div class="row">
+        <div class="row-l">재발 위험도</div>
+        <div class="row-r">
+          ${risk != null ? risk + '%' : ''}
+          <div class="rsk-bar"><div class="rsk-fill" style="width:${risk || 0}%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-card">
+      <div class="sec-title">AI 진단 리포트</div>
+      <div class="row"><div class="row-l">진단 1</div><div class="row-r">${rpt.diagnosis_paragraph_1 || ''}</div></div>
+      <div class="row"><div class="row-l">진단 2</div><div class="row-r">${rpt.diagnosis_paragraph_2 || ''}</div></div>
+      <div class="row"><div class="row-l">근본 원인</div><div class="row-r">${rpt.mechanism_root_cause || ''}</div></div>
+      <div class="row"><div class="row-l">진행 과정</div><div class="row-r">${rpt.mechanism_progression || ''}</div></div>
+      <div class="row"><div class="row-l">촉진 요인</div><div class="row-r">${rpt.mechanism_accelerator || ''}</div></div>
+      <div class="row"><div class="row-l">현 상태</div><div class="row-r">${rpt.mechanism_current_state || ''}</div></div>
+    </div>
+
+    ${cmSection}
+
+    <div class="sec-card">
+      <div class="sec-title">상담 메모</div>
+      <textarea class="notes-textarea" id="notes-input" placeholder="상담 내용을 입력하세요...">${d.consultant_notes || ''}</textarea>
+      <div>
+        <button class="notes-btn" onclick="saveNote()">저장</button>
+        <span class="notes-saved" id="notes-saved">저장되었습니다 ✓</span>
+      </div>
+    </div>`;
+}
+
+function saveNote() {
+  const note = document.getElementById('notes-input').value;
+  fetch('/api/note/' + encodeURIComponent(currentCode), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note }),
+  }).then(() => {
+    const saved = document.getElementById('notes-saved');
+    saved.style.display = 'inline';
+    setTimeout(() => saved.style.display = 'none', 2000);
+  });
+}
+
+// Init
+loadList();
+</script>
+</body>
+</html>
