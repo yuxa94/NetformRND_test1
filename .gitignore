@@ -16,3 +16,7 @@ uploads/
 # IDE
 .vscode/
 .idea/
+
+# Not needed for deployment
+.claude/
+testapi.py
