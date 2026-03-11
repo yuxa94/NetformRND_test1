@@ -4,6 +4,9 @@ import tempfile
 import threading
 import uuid
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, request, jsonify, send_from_directory, send_file, render_template
 from defect_analyzer import analyze_defect, generate_repaired_image
 from database import (

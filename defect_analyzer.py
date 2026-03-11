@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import sys
 from pathlib import Path
 from google import genai
@@ -7,7 +8,7 @@ from google.genai import types
 from PIL import Image, ImageOps
 from sheet_service import find_construction_method
 
-API_KEY = "AIzaSyDJbG-UHaiOi9X_myovUcy1Bc3Y2pxdPxk"
+API_KEY = os.environ.get("GEMINI_API_KEY", "")
 MODEL = "gemini-3-flash-preview"
 
 SYSTEM_INSTRUCTION = """
