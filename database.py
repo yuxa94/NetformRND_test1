@@ -1,12 +1,10 @@
-import sqlite3
 import json
 import os
 from datetime import datetime
-from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "data.db"
-UPLOADS_DIR = Path(__file__).parent / "uploads"
-UPLOADS_DIR.mkdir(exist_ok=True)
+from sqlalchemy import or_, func, extract
+from models import db, Analysis
+from s3_storage import upload_original, upload_generated
 
 MATERIAL_MAP = {
     "AS": "아스팔트슁글",
@@ -14,64 +12,22 @@ MATERIAL_MAP = {
 }
 
 
-def get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db():
-    with get_conn() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS analyses (
-                id                      INTEGER PRIMARY KEY AUTOINCREMENT,
-                diagnosis_code          TEXT UNIQUE NOT NULL,
-                created_at              DATETIME DEFAULT CURRENT_TIMESTAMP,
-                field_code              TEXT,
-                area_code               TEXT,
-                detailed_area_code      TEXT,
-                part_code               TEXT,
-                defect_type_code        TEXT,
-                defect_code             TEXT,
-                material_type           TEXT,
-                urgency                 TEXT,
-                confidence              INTEGER,
-                risk_percentage         INTEGER,
-                summary                 TEXT,
-                report_json             TEXT,
-                construction_method_json TEXT,
-                original_image_path     TEXT,
-                repaired_image_path     TEXT,
-                consultant_notes        TEXT DEFAULT ''
-            )
-        """)
-        conn.commit()
-
-
 def generate_diagnosis_code() -> str:
     """Generate AI-YYYYMMDD-XXXX format code (sequential per day)."""
     today = datetime.now().strftime("%Y%m%d")
     prefix = f"AI-{today}-"
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) as cnt FROM analyses WHERE diagnosis_code LIKE ?",
-            (prefix + "%",)
-        ).fetchone()
-        seq = (row["cnt"] or 0) + 1
+    cnt = Analysis.query.filter(Analysis.diagnosis_code.like(prefix + "%")).count()
+    seq = cnt + 1
     return f"{prefix}{seq:04d}"
 
 
 def save_analysis(result: dict, orig_img_bytes: bytes, diagnosis_code: str) -> int:
     """Save analysis result and original image to DB. Returns row id."""
-    # Save original image file
-    img_filename = f"orig_{diagnosis_code}.png"
-    img_path = UPLOADS_DIR / img_filename
-    img_path.write_bytes(orig_img_bytes)
+    img_url = upload_original(orig_img_bytes)
 
     area_code = result.get("area", {}).get("code", "")
     detailed_area_code = result.get("detailed_area", {}).get("code", "")
 
-    # Material type: only meaningful for RF area
     if area_code == "RF":
         material_type = MATERIAL_MAP.get(detailed_area_code, "기타")
     else:
@@ -80,58 +36,47 @@ def save_analysis(result: dict, orig_img_bytes: bytes, diagnosis_code: str) -> i
     report = result.get("report") or {}
     cm = result.get("construction_method") or {}
 
-    with get_conn() as conn:
-        cur = conn.execute("""
-            INSERT INTO analyses (
-                diagnosis_code, field_code, area_code, detailed_area_code,
-                part_code, defect_type_code, defect_code, material_type,
-                urgency, confidence, risk_percentage, summary,
-                report_json, construction_method_json, original_image_path
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            diagnosis_code,
-            result.get("field", {}).get("code", ""),
-            area_code,
-            detailed_area_code,
-            result.get("part", {}).get("code", ""),
-            result.get("defect_type", {}).get("code", ""),
-            result.get("defect_code", ""),
-            material_type,
-            report.get("urgency", ""),
-            report.get("confidence"),
-            report.get("risk_percentage"),
-            result.get("summary", ""),
-            json.dumps(report, ensure_ascii=False),
-            json.dumps(cm, ensure_ascii=False),
-            str(img_path),
-        ))
-        conn.commit()
-        return cur.lastrowid
+    analysis = Analysis(
+        diagnosis_code=diagnosis_code,
+        field_code=result.get("field", {}).get("code", ""),
+        area_code=area_code,
+        detailed_area_code=detailed_area_code,
+        part_code=result.get("part", {}).get("code", ""),
+        defect_type_code=result.get("defect_type", {}).get("code", ""),
+        defect_code=result.get("defect_code", ""),
+        material_type=material_type,
+        urgency=report.get("urgency", ""),
+        confidence=report.get("confidence"),
+        risk_percentage=report.get("risk_percentage"),
+        summary=result.get("summary", ""),
+        report_json=json.dumps(report, ensure_ascii=False),
+        construction_method_json=json.dumps(cm, ensure_ascii=False),
+        original_image_path=img_url,
+    )
+    db.session.add(analysis)
+    db.session.commit()
+    return analysis.id
 
 
 def update_repaired_image(diagnosis_code: str, repaired_img_bytes: bytes):
-    """Save repaired image and update DB path."""
-    img_filename = f"repair_{diagnosis_code}.png"
-    img_path = UPLOADS_DIR / img_filename
-    img_path.write_bytes(repaired_img_bytes)
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE analyses SET repaired_image_path = ? WHERE diagnosis_code = ?",
-            (str(img_path), diagnosis_code)
-        )
-        conn.commit()
+    """Save repaired image to S3 and update DB URL."""
+    img_url = upload_generated(repaired_img_bytes)
+
+    analysis = Analysis.query.filter_by(diagnosis_code=diagnosis_code).first()
+    if analysis:
+        analysis.repaired_image_path = img_url
+        db.session.commit()
 
 
 def get_analysis_by_code(diagnosis_code: str) -> dict | None:
     """Fetch full analysis record by diagnosis code."""
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM analyses WHERE diagnosis_code = ?",
-            (diagnosis_code,)
-        ).fetchone()
-    if not row:
+    analysis = Analysis.query.filter_by(diagnosis_code=diagnosis_code).first()
+    if not analysis:
         return None
-    d = dict(row)
+    d = analysis.to_dict()
+    # Convert datetime to string for JSON serialization
+    if d.get("created_at"):
+        d["created_at"] = d["created_at"].isoformat()
     d["report"] = json.loads(d["report_json"] or "{}")
     d["construction_method"] = json.loads(d["construction_method_json"] or "{}")
     return d
@@ -139,40 +84,51 @@ def get_analysis_by_code(diagnosis_code: str) -> dict | None:
 
 def get_analyses_list(limit: int = 50, offset: int = 0, search: str = "") -> dict:
     """Return paginated list of analyses (lightweight, no images)."""
-    with get_conn() as conn:
-        if search:
-            like = f"%{search}%"
-            rows = conn.execute(
-                """SELECT diagnosis_code, created_at, defect_code, material_type,
-                          urgency, confidence, summary
-                   FROM analyses
-                   WHERE diagnosis_code LIKE ? OR defect_code LIKE ? OR summary LIKE ?
-                   ORDER BY created_at DESC LIMIT ? OFFSET ?""",
-                (like, like, like, limit, offset)
-            ).fetchall()
-            total = conn.execute(
-                """SELECT COUNT(*) as cnt FROM analyses
-                   WHERE diagnosis_code LIKE ? OR defect_code LIKE ? OR summary LIKE ?""",
-                (like, like, like)
-            ).fetchone()["cnt"]
-        else:
-            rows = conn.execute(
-                """SELECT diagnosis_code, created_at, defect_code, material_type,
-                          urgency, confidence, summary
-                   FROM analyses ORDER BY created_at DESC LIMIT ? OFFSET ?""",
-                (limit, offset)
-            ).fetchall()
-            total = conn.execute("SELECT COUNT(*) as cnt FROM analyses").fetchone()["cnt"]
-    return {"total": total, "items": [dict(r) for r in rows]}
+    query = Analysis.query
+
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            or_(
+                Analysis.diagnosis_code.like(like),
+                Analysis.defect_code.like(like),
+                Analysis.summary.like(like),
+            )
+        )
+
+    total = query.count()
+    rows = (
+        query.order_by(Analysis.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    items = []
+    for r in rows:
+        items.append({
+            "diagnosis_code": r.diagnosis_code,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "defect_code": r.defect_code,
+            "material_type": r.material_type,
+            "urgency": r.urgency,
+            "confidence": r.confidence,
+            "summary": r.summary,
+        })
+
+    return {"total": total, "items": items}
 
 
 def save_consultant_note(diagnosis_code: str, note: str):
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE analyses SET consultant_notes = ? WHERE diagnosis_code = ?",
-            (note, diagnosis_code)
-        )
-        conn.commit()
+    analysis = Analysis.query.filter_by(diagnosis_code=diagnosis_code).first()
+    if analysis:
+        analysis.consultant_notes = note
+        db.session.commit()
+
+
+def _base_filters():
+    """Build reusable filter conditions list."""
+    return []
 
 
 def get_stats(year: int = None, month: int = None, quarter: int = None, material: str = None) -> dict:
@@ -180,65 +136,84 @@ def get_stats(year: int = None, month: int = None, quarter: int = None, material
     now = datetime.now()
     year = year or now.year
 
-    # Build WHERE clause
-    conditions = ["strftime('%Y', created_at) = ?"]
-    params = [str(year)]
+    filters = [extract("year", Analysis.created_at) == year]
 
     if month:
-        conditions.append("strftime('%m', created_at) = ?")
-        params.append(f"{month:02d}")
+        filters.append(extract("month", Analysis.created_at) == month)
     elif quarter:
-        months = {1: ("01","02","03"), 2: ("04","05","06"), 3: ("07","08","09"), 4: ("10","11","12")}
-        m_tuple = months.get(quarter, ("01","12"))
-        conditions.append("strftime('%m', created_at) BETWEEN ? AND ?")
-        params += [m_tuple[0], m_tuple[2]]
+        month_ranges = {1: (1, 3), 2: (4, 6), 3: (7, 9), 4: (10, 12)}
+        start_m, end_m = month_ranges.get(quarter, (1, 12))
+        filters.append(extract("month", Analysis.created_at).between(start_m, end_m))
 
     if material and material != "전체":
-        conditions.append("material_type = ?")
-        params.append(material)
+        filters.append(Analysis.material_type == material)
 
-    where = "WHERE " + " AND ".join(conditions)
+    # Use subquery for filtered IDs to avoid N+1
+    id_subquery = db.session.query(Analysis.id).filter(*filters).subquery()
 
-    with get_conn() as conn:
-        # Total count
-        total = conn.execute(f"SELECT COUNT(*) as cnt FROM analyses {where}", params).fetchone()["cnt"]
+    total = db.session.query(func.count()).select_from(Analysis).filter(Analysis.id.in_(id_subquery)).scalar()
 
-        # Danger count
-        danger = conn.execute(
-            f"SELECT COUNT(*) as cnt FROM analyses {where} AND urgency IN ('위험','높음')", params
-        ).fetchone()["cnt"]
+    danger = (
+        db.session.query(func.count())
+        .select_from(Analysis)
+        .filter(Analysis.id.in_(id_subquery), Analysis.urgency.in_(["위험", "높음"]))
+        .scalar()
+    )
 
-        # Daily counts
-        daily_rows = conn.execute(
-            f"SELECT strftime('%Y-%m-%d', created_at) as day, COUNT(*) as cnt "
-            f"FROM analyses {where} GROUP BY day ORDER BY day",
-            params
-        ).fetchall()
-        daily = [{"day": r["day"], "count": r["cnt"]} for r in daily_rows]
+    # Daily counts
+    daily_rows = (
+        db.session.query(
+            func.date(Analysis.created_at).label("day"),
+            func.count().label("cnt"),
+        )
+        .filter(Analysis.id.in_(id_subquery))
+        .group_by(func.date(Analysis.created_at))
+        .order_by(func.date(Analysis.created_at))
+        .all()
+    )
+    daily = [{"day": str(r.day), "count": r.cnt} for r in daily_rows]
 
-        # Material breakdown
-        mat_rows = conn.execute(
-            f"SELECT COALESCE(material_type,'기타') as mat, COUNT(*) as cnt "
-            f"FROM analyses {where} GROUP BY mat",
-            params
-        ).fetchall()
-        material_breakdown = [{"material": r["mat"], "count": r["cnt"]} for r in mat_rows]
+    # Material breakdown
+    mat_label = func.coalesce(Analysis.material_type, "기타")
+    mat_rows = (
+        db.session.query(
+            mat_label.label("mat"),
+            func.count().label("cnt"),
+        )
+        .filter(Analysis.id.in_(id_subquery))
+        .group_by(mat_label)
+        .all()
+    )
+    material_breakdown = [{"material": r.mat, "count": r.cnt} for r in mat_rows]
 
-        # Defect type breakdown
-        defect_rows = conn.execute(
-            f"SELECT defect_type_code, COUNT(*) as cnt "
-            f"FROM analyses {where} GROUP BY defect_type_code ORDER BY cnt DESC",
-            params
-        ).fetchall()
-        defect_breakdown = [{"code": r["defect_type_code"], "count": r["cnt"]} for r in defect_rows]
+    # Defect type breakdown
+    defect_rows = (
+        db.session.query(
+            Analysis.defect_type_code,
+            func.count().label("cnt"),
+        )
+        .filter(Analysis.id.in_(id_subquery))
+        .group_by(Analysis.defect_type_code)
+        .order_by(func.count().desc())
+        .all()
+    )
+    defect_breakdown = [{"code": r.defect_type_code, "count": r.cnt} for r in defect_rows]
 
-        # Monthly counts (for year view)
-        monthly_rows = conn.execute(
-            f"SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as cnt "
-            f"FROM analyses {where} GROUP BY month ORDER BY month",
-            params
-        ).fetchall()
-        monthly = [{"month": r["month"], "count": r["cnt"]} for r in monthly_rows]
+    # Monthly counts — use extract for DB portability
+    year_col = extract("year", Analysis.created_at)
+    month_col = extract("month", Analysis.created_at)
+    monthly_rows = (
+        db.session.query(
+            year_col.label("y"),
+            month_col.label("m"),
+            func.count().label("cnt"),
+        )
+        .filter(Analysis.id.in_(id_subquery))
+        .group_by(year_col, month_col)
+        .order_by(year_col, month_col)
+        .all()
+    )
+    monthly = [{"month": f"{int(r.y)}-{int(r.m):02d}", "count": r.cnt} for r in monthly_rows]
 
     return {
         "total": total,
@@ -248,7 +223,3 @@ def get_stats(year: int = None, month: int = None, quarter: int = None, material
         "material_breakdown": material_breakdown,
         "defect_breakdown": defect_breakdown,
     }
-
-
-# Initialize DB on import
-init_db()

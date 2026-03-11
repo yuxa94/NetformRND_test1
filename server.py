@@ -4,36 +4,47 @@ import tempfile
 import threading
 import uuid
 
-from dotenv import load_dotenv
-load_dotenv()
+import config  # noqa: F401 — loads environment-specific .env
 
 from flask import Flask, request, jsonify, send_from_directory, send_file, render_template
+from models import db
 from defect_analyzer import analyze_defect, generate_repaired_image
 from database import (
     generate_diagnosis_code, save_analysis, update_repaired_image,
     get_analysis_by_code, save_consultant_note, get_stats, get_analyses_list,
 )
 
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
 app = Flask(__name__, static_folder="templates", template_folder="templates")
+_default_db = "sqlite:///" + os.path.join(BASE_DIR, "data.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", _default_db)
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
 
 # In-memory store for repair image jobs: { job_id: {"status": ..., ...} }
 repair_jobs: dict = {}
 
 
 def _repair_worker(job_id: str, image_bytes: bytes, defect_result: dict, diagnosis_code: str):
-    try:
-        img_data, img_mime = generate_repaired_image(image_bytes, defect_result)
-        if img_data:
-            update_repaired_image(diagnosis_code, img_data)
-            repair_jobs[job_id] = {
-                "status": "done",
-                "image": base64.b64encode(img_data).decode(),
-                "mime_type": img_mime,
-            }
-        else:
-            repair_jobs[job_id] = {"status": "error", "error": "모델이 이미지를 생성하지 못했습니다."}
-    except Exception as e:
-        repair_jobs[job_id] = {"status": "error", "error": str(e)}
+    with app.app_context():
+        try:
+            img_data, img_mime = generate_repaired_image(image_bytes, defect_result)
+            if img_data:
+                update_repaired_image(diagnosis_code, img_data)
+                repair_jobs[job_id] = {
+                    "status": "done",
+                    "image": base64.b64encode(img_data).decode(),
+                    "mime_type": img_mime,
+                }
+            else:
+                repair_jobs[job_id] = {"status": "error", "error": "모델이 이미지를 생성하지 못했습니다."}
+        except Exception as e:
+            repair_jobs[job_id] = {"status": "error", "error": str(e)}
 
 
 @app.route("/")
@@ -133,15 +144,9 @@ def api_lookup(code):
     if not record:
         return jsonify({"error": "진단 코드를 찾을 수 없습니다."}), 404
 
-    # Attach image as base64 if available
-    orig_path = record.get("original_image_path")
-    if orig_path and os.path.exists(orig_path):
-        with open(orig_path, "rb") as f:
-            record["original_image_b64"] = base64.b64encode(f.read()).decode()
-    repair_path = record.get("repaired_image_path")
-    if repair_path and os.path.exists(repair_path):
-        with open(repair_path, "rb") as f:
-            record["repaired_image_b64"] = base64.b64encode(f.read()).decode()
+    # Image URLs are already CDN URLs from S3
+    record["original_image_url"] = record.get("original_image_path")
+    record["repaired_image_url"] = record.get("repaired_image_path")
 
     return jsonify(record)
 

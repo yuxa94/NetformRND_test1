@@ -229,8 +229,8 @@ function renderDetail(d) {
   const urgency = rpt.urgency || d.urgency || '';
   const urgCls = URGENCY_CLS[urgency] || '';
 
-  const setImg = (b64) => b64
-    ? `<img src="data:image/png;base64,${b64}" alt="이미지">`
+  const setImg = (url) => url
+    ? `<img src="${url}" alt="이미지">`
     : `<span class="img-placeholder">없음</span>`;
 
   const cmSection = (cm.method_name && cm.method_name !== 'N/A') ? `
@@ -259,11 +259,11 @@ function renderDetail(d) {
       <div class="sec-title">분석 이미지</div>
       <div class="img-row">
         <div>
-          <div class="img-box">${setImg(d.original_image_b64)}</div>
+          <div class="img-box">${setImg(d.original_image_url)}</div>
           <div class="img-label">원본 이미지</div>
         </div>
         <div>
-          <div class="img-box">${setImg(d.repaired_image_b64)}</div>
+          <div class="img-box">${setImg(d.repaired_image_url)}</div>
           <div class="img-label">AI 보수 예상</div>
         </div>
       </div>
