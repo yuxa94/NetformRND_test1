@@ -40,6 +40,7 @@ class ConstructionMethod(db.Model):
     core_composition = db.Column(db.Text)
     key_advantages = db.Column(db.Text)
     example_link = db.Column(db.String(500))
+    deleted_at = db.Column(db.DateTime, nullable=True, default=None)
 
 
 class Specification(db.Model):
@@ -48,3 +49,13 @@ class Specification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     method_name = db.Column(db.String(100), nullable=False, index=True)
     spec_link = db.Column(db.String(500))
+    deleted_at = db.Column(db.DateTime, nullable=True, default=None)
+
+
+class AdminAuth(db.Model):
+    __tablename__ = "admin_auth"
+
+    id = db.Column(db.Integer, primary_key=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    session_timeout_minutes = db.Column(db.Integer, default=30)
+    updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())

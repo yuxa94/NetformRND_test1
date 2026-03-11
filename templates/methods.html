@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POUR AI — 공법 관리</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F4FF;color:#1E293B;min-height:100vh;}
+:root{--blue:#2563EB;--blue-light:#EFF6FF;--border:#E2E8F0;--card:#fff;--text:#1E293B;--sub:#64748B;}
+
+/* Header */
+.hdr{background:var(--blue);color:white;padding:16px 24px;display:flex;align-items:center;gap:12px;}
+.hdr-logo{font-size:18px;font-weight:800;letter-spacing:-.5px;}
+.hdr-title{font-size:14px;opacity:.8;}
+.hdr-nav{margin-left:auto;display:flex;gap:12px;}
+.hdr-nav a{color:rgba(255,255,255,.75);text-decoration:none;font-size:13px;font-weight:500;padding:6px 14px;border-radius:8px;transition:.2s;}
+.hdr-nav a:hover{background:rgba(255,255,255,.15);color:white;}
+
+/* Layout */
+.wrap{max-width:1200px;margin:0 auto;padding:28px 20px;}
+
+/* Tabs */
+.tabs{display:flex;gap:8px;margin-bottom:24px;}
+.tab-btn{height:38px;padding:0 20px;border-radius:20px;border:1px solid var(--border);font-size:13px;font-weight:600;font-family:inherit;background:white;color:var(--sub);cursor:pointer;transition:.2s;}
+.tab-btn:hover{border-color:var(--blue);color:var(--blue);}
+.tab-btn.active{background:var(--blue);color:white;border-color:var(--blue);}
+
+/* Panel */
+.panel{display:none;}
+.panel.active{display:block;}
+
+/* Panel description */
+.panel-desc{font-size:13px;color:var(--sub);line-height:1.6;margin-bottom:16px;padding:14px 16px;background:var(--blue-light);border-radius:12px;border:1px solid #DBEAFE;}
+
+/* Toolbar */
+.toolbar{display:flex;gap:10px;margin-bottom:16px;align-items:center;}
+.search-wrap{position:relative;flex:1;max-width:360px;}
+.search-wrap input{width:100%;height:38px;padding:0 14px 0 38px;border-radius:10px;border:1px solid var(--border);font-size:13px;font-family:inherit;background:white;color:var(--text);outline:none;transition:.2s;}
+.search-wrap input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--sub);pointer-events:none;}
+.btn-add{height:38px;padding:0 18px;border-radius:10px;border:none;background:var(--blue);color:white;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;white-space:nowrap;}
+.btn-add:hover{background:#1D4ED8;}
+
+/* Table card */
+.table-card{background:var(--card);border-radius:16px;border:1px solid var(--border);overflow:hidden;}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.tbl thead tr{border-bottom:1px solid var(--border);}
+.tbl th{padding:12px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.05em;text-transform:uppercase;background:#FAFBFF;}
+.tbl td{padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text);}
+.tbl tbody tr:last-child td{border-bottom:none;}
+.tbl tbody tr{transition:.15s;}
+.tbl tbody tr:hover{background:#F8FAFF;}
+.tbl td.code{font-weight:700;color:var(--blue);font-family:monospace;font-size:12px;}
+.tbl td.truncate{max-width:320px;white-space:normal;word-break:break-word;line-height:1.5;}
+.tbl td.link-cell a{color:var(--blue);text-decoration:none;font-size:12px;white-space:nowrap;}
+.tbl td.link-cell a:hover{text-decoration:underline;}
+.tbl td.link-cell span{color:var(--sub);font-size:12px;}
+
+/* Row actions */
+.row-actions{display:flex;gap:6px;}
+.btn-edit,.btn-del{height:30px;padding:0 12px;border-radius:8px;border:none;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;transition:.2s;white-space:nowrap;}
+.btn-edit{background:var(--blue-light);color:var(--blue);}
+.btn-edit:hover{background:#DBEAFE;}
+.btn-del{background:#FEF2F2;color:#EF4444;}
+.btn-del:hover{background:#FEE2E2;}
+
+/* Empty state */
+.empty{text-align:center;padding:60px 20px;color:var(--sub);font-size:14px;}
+
+/* Modal backdrop */
+.modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;opacity:0;pointer-events:none;transition:.2s;}
+.modal-backdrop.open{opacity:1;pointer-events:all;}
+.modal{background:white;border-radius:20px;width:100%;max-width:560px;box-shadow:0 24px 60px rgba(15,23,42,.18);transform:translateY(12px);transition:.25s;padding:28px;}
+.modal-backdrop.open .modal{transform:translateY(0);}
+.modal-title{font-size:17px;font-weight:800;margin-bottom:22px;color:var(--text);}
+.form-grid{display:grid;gap:14px;}
+.form-row{display:grid;gap:6px;}
+.form-row.two{grid-template-columns:1fr 1fr;}
+.form-label{font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.05em;text-transform:uppercase;}
+.form-input{height:38px;padding:0 12px;border-radius:10px;border:1px solid var(--border);font-size:13px;font-family:inherit;color:var(--text);outline:none;transition:.2s;width:100%;}
+.form-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.form-textarea{padding:10px 12px;border-radius:10px;border:1px solid var(--border);font-size:13px;font-family:inherit;color:var(--text);outline:none;transition:.2s;width:100%;min-height:72px;resize:vertical;line-height:1.5;}
+.form-textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;}
+.btn-cancel{height:38px;padding:0 18px;border-radius:10px;border:1px solid var(--border);background:white;color:var(--sub);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:.2s;}
+.btn-cancel:hover{background:#F8FAFF;border-color:#CBD5E1;}
+.btn-save{height:38px;padding:0 20px;border-radius:10px;border:none;background:var(--blue);color:white;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
+.btn-save:hover{background:#1D4ED8;}
+
+/* Loading spinner */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(37,99,235,.2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-logo">POUR AI</div>
+  <div class="hdr-title">공법 관리</div>
+  <nav class="hdr-nav">
+    <a href="/admin">관리자 대시보드</a>
+    <a href="/consult">상담원 조회</a>
+    <a href="/methods">공법 관리</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('methods')">보수공법</button>
+    <button class="tab-btn" onclick="switchTab('specs')">시방서</button>
+  </div>
+
+  <!-- ─────────────────────────────────────── 보수공법 Panel -->
+  <div id="panel-methods" class="panel active">
+    <div class="panel-desc">하자 진단 시 AI가 하자코드를 기반으로 아래 보수공법 목록에서 최적의 공법을 자동 매칭합니다. 공법 정보가 정확하도록 주기적으로 확인하고 최신 상태로 유지해 주세요.</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg class="search-icon" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="methods-search" placeholder="공법명, 코드로 검색…" oninput="debounce('methods')" />
+      </div>
+      <button class="btn-add" onclick="openModal('methods', null)">+ 추가</button>
+    </div>
+    <div class="table-card">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>코드</th>
+            <th>공법명</th>
+            <th>주요용도</th>
+            <th>핵심조성</th>
+            <th>핵심장점</th>
+            <th>예제링크</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody id="methods-tbody">
+          <tr><td colspan="7"><div class="empty"><span class="spinner"></span>불러오는 중…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────── 시방서 Panel -->
+  <div id="panel-specs" class="panel">
+    <div class="panel-desc">보수공법과 연결되는 시방서 링크를 관리합니다. 공법명이 정확히 일치해야 자동으로 연결되므로, 보수공법 탭의 공법명과 동일하게 입력해 주세요.</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg class="search-icon" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="specs-search" placeholder="공법명으로 검색…" oninput="debounce('specs')" />
+      </div>
+      <button class="btn-add" onclick="openModal('specs', null)">+ 추가</button>
+    </div>
+    <div class="table-card">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>공법명</th>
+            <th>시방서 링크</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody id="specs-tbody">
+          <tr><td colspan="3"><div class="empty"><span class="spinner"></span>불러오는 중…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─────────────────────────────────────── Modal -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="closeOnBackdrop(event)">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">추가</div>
+    <div class="form-grid" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">취소</button>
+      <button class="btn-save" onclick="saveModal()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentTab = 'methods';
+let modalMode  = null;   // 'methods' | 'specs'
+let editingId  = null;   // null = add, number = edit
+let debounceTimer = null;
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['methods','specs'][i] === tab);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+// ── Search debounce ───────────────────────────────────────────────────────────
+function debounce(tab) {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => loadData(tab), 320);
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function apiFetch(url, opts = {}) {
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Load data ─────────────────────────────────────────────────────────────────
+async function loadData(tab) {
+  const search = document.getElementById(tab + '-search').value.trim();
+  const url    = tab === 'methods'
+    ? '/api/methods' + (search ? '?search=' + encodeURIComponent(search) : '')
+    : '/api/specs'   + (search ? '?search=' + encodeURIComponent(search) : '');
+  const tbody = document.getElementById(tab + '-tbody');
+  const cols  = tab === 'methods' ? 7 : 3;
+  tbody.innerHTML = `<tr><td colspan="${cols}"><div class="empty"><span class="spinner"></span>불러오는 중…</div></td></tr>`;
+  try {
+    const data = await apiFetch(url);
+    renderRows(tab, data);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="${cols}"><div class="empty">데이터를 불러오지 못했습니다. (${e.message})</div></td></tr>`;
+  }
+}
+
+// ── Render rows ───────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function linkCell(url) {
+  if (!url) return `<td class="link-cell"><span>—</span></td>`;
+  return `<td class="link-cell"><a href="${esc(url)}" target="_blank" rel="noopener">링크 보기 ↗</a></td>`;
+}
+
+function renderRows(tab, data) {
+  const tbody = document.getElementById(tab + '-tbody');
+  const cols  = tab === 'methods' ? 7 : 3;
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${cols}"><div class="empty">데이터가 없습니다.</div></td></tr>`;
+    return;
+  }
+  if (tab === 'methods') {
+    tbody.innerHTML = data.map(row => `
+      <tr>
+        <td class="code">${esc(row.code)}</td>
+        <td><strong>${esc(row.method_name)}</strong></td>
+        <td class="truncate" title="${esc(row.main_use)}">${esc(row.main_use)}</td>
+        <td class="truncate" title="${esc(row.core_composition)}">${esc(row.core_composition)}</td>
+        <td class="truncate" title="${esc(row.key_advantages)}">${esc(row.key_advantages)}</td>
+        ${linkCell(row.example_link)}
+        <td>
+          <div class="row-actions">
+            <button class="btn-edit" onclick="openModal('methods', ${row.id})">수정</button>
+            <button class="btn-del"  onclick="deleteRow('methods', ${row.id})">삭제</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  } else {
+    tbody.innerHTML = data.map(row => `
+      <tr>
+        <td><strong>${esc(row.method_name)}</strong></td>
+        ${linkCell(row.spec_link)}
+        <td>
+          <div class="row-actions">
+            <button class="btn-edit" onclick="openModal('specs', ${row.id})">수정</button>
+            <button class="btn-del"  onclick="deleteRow('specs', ${row.id})">삭제</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+async function deleteRow(tab, id) {
+  if (!window.confirm('삭제하시겠습니까?')) return;
+  const url = tab === 'methods' ? `/api/methods/${id}` : `/api/specs/${id}`;
+  try {
+    await apiFetch(url, { method: 'DELETE' });
+    loadData(tab);
+  } catch (e) {
+    alert('삭제 중 오류가 발생했습니다.\n' + e.message);
+  }
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal(tab, id) {
+  modalMode = tab;
+  editingId = id;
+  document.getElementById('modal-title').textContent =
+    (id ? '수정' : '추가') + ' — ' + (tab === 'methods' ? '보수공법' : '시방서');
+
+  const body = document.getElementById('modal-body');
+
+  if (tab === 'methods') {
+    body.innerHTML = `
+      <div class="form-row two">
+        <div>
+          <div class="form-label">코드</div>
+          <input id="f-code" class="form-input" placeholder="예: EP-01" />
+        </div>
+        <div>
+          <div class="form-label">공법명</div>
+          <input id="f-name" class="form-input" placeholder="공법명 입력" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">주요용도</div>
+        <textarea id="f-use_case" class="form-textarea" placeholder="주요 사용 용도를 입력하세요"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-label">핵심조성</div>
+        <textarea id="f-composition" class="form-textarea" placeholder="핵심 조성 성분을 입력하세요"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-label">핵심장점</div>
+        <textarea id="f-advantage" class="form-textarea" placeholder="핵심 장점을 입력하세요"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-label">예제링크 <span style="font-weight:400;opacity:.7">(선택)</span></div>
+        <input id="f-example_url" class="form-input" placeholder="https://" />
+      </div>`;
+  } else {
+    body.innerHTML = `
+      <div class="form-row">
+        <div class="form-label">공법명</div>
+        <input id="f-name" class="form-input" placeholder="공법명 입력" />
+      </div>
+      <div class="form-row">
+        <div class="form-label">시방서 링크</div>
+        <input id="f-spec_url" class="form-input" placeholder="https://" />
+      </div>`;
+  }
+
+  // If editing, fetch and populate
+  if (id) {
+    const url = tab === 'methods' ? `/api/methods/${id}` : `/api/specs/${id}`;
+    apiFetch(url).then(row => {
+      if (tab === 'methods') {
+        setValue('f-code',        row.code);
+        setValue('f-name',        row.method_name);
+        setValue('f-use_case',    row.main_use);
+        setValue('f-composition', row.core_composition);
+        setValue('f-advantage',   row.key_advantages);
+        setValue('f-example_url', row.example_link);
+      } else {
+        setValue('f-name',     row.method_name);
+        setValue('f-spec_url', row.spec_link);
+      }
+    }).catch(e => {
+      alert('데이터를 불러오지 못했습니다.\n' + e.message);
+      closeModal();
+    });
+  }
+
+  document.getElementById('modal-backdrop').classList.add('open');
+}
+
+function setValue(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val ?? '';
+}
+
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.remove('open');
+  setTimeout(() => {
+    modalMode = null;
+    editingId = null;
+  }, 200);
+}
+
+function closeOnBackdrop(e) {
+  if (e.target === document.getElementById('modal-backdrop')) closeModal();
+}
+
+async function saveModal() {
+  const tab = modalMode;
+  let body;
+
+  if (tab === 'methods') {
+    const code        = document.getElementById('f-code')?.value.trim();
+    const name        = document.getElementById('f-name')?.value.trim();
+    const use_case    = document.getElementById('f-use_case')?.value.trim();
+    const composition = document.getElementById('f-composition')?.value.trim();
+    const advantage   = document.getElementById('f-advantage')?.value.trim();
+    const example_url = document.getElementById('f-example_url')?.value.trim();
+    if (!code || !name) { alert('코드와 공법명은 필수 항목입니다.'); return; }
+    body = { code, method_name: name, main_use: use_case, core_composition: composition, key_advantages: advantage, example_link: example_url };
+  } else {
+    const name     = document.getElementById('f-name')?.value.trim();
+    const spec_url = document.getElementById('f-spec_url')?.value.trim();
+    if (!name) { alert('공법명은 필수 항목입니다.'); return; }
+    body = { method_name: name, spec_link: spec_url };
+  }
+
+  const isEdit = editingId !== null;
+  const url = tab === 'methods'
+    ? (isEdit ? `/api/methods/${editingId}` : '/api/methods')
+    : (isEdit ? `/api/specs/${editingId}`   : '/api/specs');
+  const method = isEdit ? 'PUT' : 'POST';
+
+  try {
+    await apiFetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    closeModal();
+    loadData(tab);
+  } catch (e) {
+    alert('저장 중 오류가 발생했습니다.\n' + e.message);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadData('methods');
+loadData('specs');
+
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+</script>
+</body>
+</html>

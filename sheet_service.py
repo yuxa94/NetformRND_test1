@@ -17,7 +17,8 @@ def _calculate_similarity(code1: str, code2: str) -> int:
 def get_specification_link(method_name: str) -> str | None:
     """Look up 시방서 링크 by exact 공법명 match (case-insensitive)."""
     spec = Specification.query.filter(
-        db.func.lower(Specification.method_name) == method_name.strip().lower()
+        db.func.lower(Specification.method_name) == method_name.strip().lower(),
+        Specification.deleted_at.is_(None),
     ).first()
     if spec and spec.spec_link:
         return spec.spec_link
@@ -26,7 +27,7 @@ def get_specification_link(method_name: str) -> str | None:
 
 def find_construction_method(defect_code: str) -> dict | None:
     """Find the best matching construction method for a defect code."""
-    methods = ConstructionMethod.query.all()
+    methods = ConstructionMethod.query.filter(ConstructionMethod.deleted_at.is_(None)).all()
     if not methods:
         return None
 
