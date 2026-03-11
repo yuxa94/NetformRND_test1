@@ -30,10 +30,14 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
     # Seed default admin password from env if table is empty
-    if not AdminAuth.query.first():
+    auth = AdminAuth.query.first()
+    if not auth:
         default_pw = os.environ.get("ADMIN_PASSWORD", "admin1234")
-        auth = AdminAuth(password_hash=generate_password_hash(default_pw))
+        auth = AdminAuth(password_hash=generate_password_hash(default_pw), session_timeout_minutes=240)
         db.session.add(auth)
+        db.session.commit()
+    elif auth.session_timeout_minutes != 240:
+        auth.session_timeout_minutes = 240
         db.session.commit()
 
 
@@ -142,7 +146,7 @@ def login():
     if not auth or not check_password_hash(auth.password_hash, password):
         return jsonify({"error": "비밀번호가 올바르지 않습니다."}), 401
 
-    timeout = auth.session_timeout_minutes or 30
+    timeout = auth.session_timeout_minutes or 240
     session["authenticated"] = True
     session["expires_at"] = (datetime.now() + timedelta(minutes=timeout)).isoformat()
     next_url = (request.json or request.form).get("next", "/admin")
@@ -239,6 +243,7 @@ def api_note(code):
 
 # ── Construction methods management page
 @app.route("/methods")
+@login_required
 def methods():
     return render_template("methods.html")
 

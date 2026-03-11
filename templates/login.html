@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POUR AI — 로그인</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F4FF;color:#1E293B;min-height:100vh;display:flex;align-items:center;justify-content:center;}
+:root{--blue:#2563EB;--border:#E2E8F0;--card:#fff;--text:#1E293B;--sub:#64748B;--red:#EF4444;}
+
+.login-card{background:var(--card);border-radius:20px;border:1px solid var(--border);padding:40px 36px;width:100%;max-width:400px;box-shadow:0 4px 24px rgba(0,0,0,.06);}
+.logo{font-size:22px;font-weight:800;color:var(--blue);text-align:center;margin-bottom:6px;letter-spacing:-.5px;}
+.subtitle{font-size:13px;color:var(--sub);text-align:center;margin-bottom:32px;}
+
+.field-label{font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px;display:block;}
+.field-input{width:100%;height:44px;padding:0 14px;border-radius:12px;border:1.5px solid var(--border);font-size:14px;font-family:inherit;color:var(--text);outline:none;transition:.2s;}
+.field-input:focus{border-color:var(--blue);}
+
+.login-btn{width:100%;height:44px;margin-top:20px;background:var(--blue);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
+.login-btn:hover{background:#1D4ED8;}
+.login-btn:disabled{opacity:.5;cursor:default;}
+
+.error-msg{margin-top:14px;padding:10px 14px;background:#FEF2F2;color:var(--red);border-radius:10px;font-size:13px;display:none;text-align:center;}
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="logo">POUR AI</div>
+  <div class="subtitle">관리자 인증이 필요합니다</div>
+
+  <label class="field-label">비밀번호</label>
+  <input class="field-input" id="pw-input" type="password" placeholder="비밀번호를 입력하세요"
+    autofocus onkeydown="if(event.key==='Enter') doLogin()">
+
+  <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
+  <div class="error-msg" id="error-msg"></div>
+</div>
+
+<script>
+const NEXT_URL = "{{ next }}";
+
+function doLogin() {
+  const pw = document.getElementById('pw-input').value;
+  if (!pw) return;
+
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('error-msg');
+  btn.disabled = true;
+  err.style.display = 'none';
+
+  fetch('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw, next: NEXT_URL }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        window.location.href = data.next || '/admin';
+      } else {
+        err.textContent = data.error || '로그인 실패';
+        err.style.display = 'block';
+        btn.disabled = false;
+      }
+    })
+    .catch(() => {
+      err.textContent = '서버 오류가 발생했습니다.';
+      err.style.display = 'block';
+      btn.disabled = false;
+    });
+}
+</script>
+</body>
+</html>

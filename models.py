@@ -57,5 +57,5 @@ class AdminAuth(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    session_timeout_minutes = db.Column(db.Integer, default=30)
+    session_timeout_minutes = db.Column(db.Integer, default=240)
     updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
