@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from datetime import datetime
 
 from sqlalchemy import or_, func, extract
@@ -13,16 +14,15 @@ MATERIAL_MAP = {
 
 
 def generate_diagnosis_code() -> str:
-    """Generate AI-YYYYMMDD-XXXX format code (sequential per day)."""
+    """Generate AI-YYYYMMDD-XXXX format code using UUID suffix."""
     today = datetime.now().strftime("%Y%m%d")
-    prefix = f"AI-{today}-"
-    cnt = Analysis.query.filter(Analysis.diagnosis_code.like(prefix + "%")).count()
-    seq = cnt + 1
-    return f"{prefix}{seq:04d}"
+    short_id = uuid.uuid4().hex[:6].upper()
+    return f"AI-{today}-{short_id}"
 
 
 def save_analysis(result: dict, orig_img_bytes: bytes, diagnosis_code: str) -> int:
-    """Save analysis result and original image to DB. Returns row id."""
+    """Save analysis result and original image to DB. Returns row id.
+    Retries with a new code on duplicate key conflict."""
     img_url = upload_original(orig_img_bytes)
 
     area_code = result.get("area", {}).get("code", "")
@@ -36,26 +36,33 @@ def save_analysis(result: dict, orig_img_bytes: bytes, diagnosis_code: str) -> i
     report = result.get("report") or {}
     cm = result.get("construction_method") or {}
 
-    analysis = Analysis(
-        diagnosis_code=diagnosis_code,
-        field_code=result.get("field", {}).get("code", ""),
-        area_code=area_code,
-        detailed_area_code=detailed_area_code,
-        part_code=result.get("part", {}).get("code", ""),
-        defect_type_code=result.get("defect_type", {}).get("code", ""),
-        defect_code=result.get("defect_code", ""),
-        material_type=material_type,
-        urgency=report.get("urgency", ""),
-        confidence=report.get("confidence"),
-        risk_percentage=report.get("risk_percentage"),
-        summary=result.get("summary", ""),
-        report_json=json.dumps(report, ensure_ascii=False),
-        construction_method_json=json.dumps(cm, ensure_ascii=False),
-        original_image_path=img_url,
-    )
-    db.session.add(analysis)
-    db.session.commit()
-    return analysis.id
+    for attempt in range(5):
+        try:
+            analysis = Analysis(
+                diagnosis_code=diagnosis_code,
+                field_code=result.get("field", {}).get("code", ""),
+                area_code=area_code,
+                detailed_area_code=detailed_area_code,
+                part_code=result.get("part", {}).get("code", ""),
+                defect_type_code=result.get("defect_type", {}).get("code", ""),
+                defect_code=result.get("defect_code", ""),
+                material_type=material_type,
+                urgency=report.get("urgency", ""),
+                confidence=report.get("confidence"),
+                risk_percentage=report.get("risk_percentage"),
+                summary=result.get("summary", ""),
+                report_json=json.dumps(report, ensure_ascii=False),
+                construction_method_json=json.dumps(cm, ensure_ascii=False),
+                original_image_path=img_url,
+            )
+            db.session.add(analysis)
+            db.session.commit()
+            return analysis.id, diagnosis_code
+        except Exception:
+            db.session.rollback()
+            # Regenerate code to avoid duplicate
+            diagnosis_code = generate_diagnosis_code()
+    raise RuntimeError(f"Failed to save analysis after 5 attempts")
 
 
 def update_repaired_image(diagnosis_code: str, repaired_img_bytes: bytes):

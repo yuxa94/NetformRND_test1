@@ -107,7 +107,7 @@ def analyze():
     # Generate diagnosis code and save to DB
     diagnosis_code = generate_diagnosis_code()
     try:
-        save_analysis(result, image_bytes, diagnosis_code)
+        _, diagnosis_code = save_analysis(result, image_bytes, diagnosis_code)
     except Exception as e:
         print(f"[server] DB save failed: {e}")
 
