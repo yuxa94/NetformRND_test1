@@ -86,8 +86,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .rsk-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#FCA5A5,#EF4444);}
 .notes-textarea{width:100%;min-height:90px;padding:12px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:inherit;color:var(--text);resize:vertical;outline:none;transition:.2s;}
 .notes-textarea:focus{border-color:var(--blue);}
-.notes-btn{margin-top:10px;height:38px;padding:0 18px;background:var(--blue);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;}
-.notes-saved{font-size:12px;color:#16A34A;margin-left:10px;display:none;}
+.notes-btn{margin-top:10px;height:38px;padding:0 18px;background:var(--blue);color:white;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;}
+.notes-btn:disabled{opacity:.4;cursor:default;}
+.notes-footer{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:10px;}
+.notes-saved{font-size:12px;color:#16A34A;display:none;}
 .err{background:#FEF2F2;color:var(--red);border-radius:12px;padding:12px 16px;font-size:13px;margin-bottom:14px;display:none;}
 </style>
 </head>
@@ -312,14 +314,26 @@ function renderDetail(d) {
         </select>
       </div>
       <textarea class="notes-textarea" id="notes-input" placeholder="상담 내용을 입력하세요...">${d.consultant_notes || ''}</textarea>
-      <div>
-        <button class="notes-btn" onclick="saveNote()">저장</button>
+      <div class="notes-footer">
         <span class="notes-saved" id="notes-saved">저장되었습니다 ✓</span>
+        <button class="notes-btn" id="notes-btn" onclick="saveNote()" disabled>저장</button>
       </div>
     </div>`;
 
+  // Track saved state for dirty detection
+  savedNote = d.consultant_notes || '';
+  savedCounselor = d.counselor_name || '';
+
   // Load counselor list and set selected
   loadCounselors(d.counselor_name || '');
+
+  // Attach change listeners after render
+  setTimeout(() => {
+    const ta = document.getElementById('notes-input');
+    const sel = document.getElementById('counselor-select');
+    if (ta) ta.addEventListener('input', checkDirty);
+    if (sel) sel.addEventListener('change', checkDirty);
+  }, 0);
 }
 
 async function loadCounselors(selected) {
@@ -328,12 +342,36 @@ async function loadCounselors(selected) {
     const list = await res.json();
     const sel = document.getElementById('counselor-select');
     if (!sel) return;
-    sel.innerHTML = '<option value="">선택 안함</option>' +
+    const names = list.map(c => c.name);
+    let options = '<option value="">선택 안함</option>' +
       list.map(c => `<option value="${c.name}"${c.name === selected ? ' selected' : ''}>${c.name}</option>`).join('');
+    // If saved counselor was deleted, still show their name (not selectable for new assignments)
+    if (selected && !names.includes(selected)) {
+      options += `<option value="${selected}" selected disabled>${selected} (삭제됨)</option>`;
+    }
+    sel.innerHTML = options;
   } catch(e) { /* ignore */ }
 }
 
+// ── Dirty tracking ───────────────────────────────
+let savedNote = '';
+let savedCounselor = '';
+
+function isDirty() {
+  const ta = document.getElementById('notes-input');
+  const sel = document.getElementById('counselor-select');
+  if (!ta) return false;
+  return ta.value !== savedNote || (sel?.value || '') !== savedCounselor;
+}
+
+function checkDirty() {
+  const btn = document.getElementById('notes-btn');
+  if (btn) btn.disabled = !isDirty();
+}
+
+// ── Save ─────────────────────────────────────────
 function saveNote() {
+  if (!currentCode || !isDirty()) return;
   const note = document.getElementById('notes-input').value;
   const counselor_name = document.getElementById('counselor-select')?.value || '';
   fetch('/api/note/' + encodeURIComponent(currentCode), {
@@ -341,11 +379,30 @@ function saveNote() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ note, counselor_name }),
   }).then(() => {
+    savedNote = note;
+    savedCounselor = counselor_name;
+    checkDirty();
     const saved = document.getElementById('notes-saved');
     saved.style.display = 'inline';
     setTimeout(() => saved.style.display = 'none', 2000);
   });
 }
+
+// ── Ctrl+S shortcut ──────────────────────────────
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (currentCode && isDirty()) saveNote();
+  }
+});
+
+// ── Unsaved changes warning ──────────────────────
+window.addEventListener('beforeunload', e => {
+  if (isDirty()) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 // Init
 loadList();
