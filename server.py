@@ -238,8 +238,14 @@ def api_lookup(code):
 def api_note(code):
     d = request.json or {}
     note = d.get("note", "")
+    raw_cid = d.get("counselor_id")
+    counselor_id = int(raw_cid) if raw_cid is not None else None
     counselor_name = d.get("counselor_name", "")
-    save_consultant_note(code.upper(), note, counselor_name)
+    try:
+        save_consultant_note(code.upper(), note, counselor_id=counselor_id, counselor_name=counselor_name)
+    except Exception as e:
+        print(f"[server] save_consultant_note error: {e}")
+        return jsonify({"error": str(e)}), 500
     return jsonify({"ok": True})
 
 

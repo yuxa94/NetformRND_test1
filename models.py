@@ -26,6 +26,7 @@ class Analysis(db.Model):
     repaired_image_path = db.Column(db.String(500))
     consultant_notes = db.Column(db.Text, default="")
     counselor_name = db.Column(db.String(50), default="")
+    counselor_id = db.Column(db.Integer, nullable=True)
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

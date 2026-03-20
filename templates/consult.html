@@ -322,10 +322,10 @@ function renderDetail(d) {
 
   // Track saved state for dirty detection
   savedNote = d.consultant_notes || '';
-  savedCounselor = d.counselor_name || '';
+  savedCounselorId = d.counselor_id != null ? String(d.counselor_id) : '';
 
-  // Load counselor list and set selected
-  loadCounselors(d.counselor_name || '');
+  // Load counselor list and set selected (by id)
+  loadCounselors(d.counselor_id, d.counselor_name || '');
 
   // Attach change listeners after render
   setTimeout(() => {
@@ -336,18 +336,18 @@ function renderDetail(d) {
   }, 0);
 }
 
-async function loadCounselors(selected) {
+async function loadCounselors(selectedId, selectedName) {
   try {
     const res = await fetch('/api/counselors');
     const list = await res.json();
     const sel = document.getElementById('counselor-select');
     if (!sel) return;
-    const names = list.map(c => c.name);
+    const ids = list.map(c => c.id);
     let options = '<option value="">선택 안함</option>' +
-      list.map(c => `<option value="${c.name}"${c.name === selected ? ' selected' : ''}>${c.name}</option>`).join('');
+      list.map(c => `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${c.name}</option>`).join('');
     // If saved counselor was deleted, still show their name (not selectable for new assignments)
-    if (selected && !names.includes(selected)) {
-      options += `<option value="${selected}" selected disabled>${selected} (삭제됨)</option>`;
+    if (selectedId && !ids.includes(selectedId)) {
+      options += `<option value="${selectedId}" selected disabled>${selectedName} (삭제됨)</option>`;
     }
     sel.innerHTML = options;
   } catch(e) { /* ignore */ }
@@ -355,13 +355,13 @@ async function loadCounselors(selected) {
 
 // ── Dirty tracking ───────────────────────────────
 let savedNote = '';
-let savedCounselor = '';
+let savedCounselorId = '';
 
 function isDirty() {
   const ta = document.getElementById('notes-input');
   const sel = document.getElementById('counselor-select');
   if (!ta) return false;
-  return ta.value !== savedNote || (sel?.value || '') !== savedCounselor;
+  return ta.value !== savedNote || (sel?.value || '') !== savedCounselorId;
 }
 
 function checkDirty() {
@@ -373,14 +373,16 @@ function checkDirty() {
 function saveNote() {
   if (!currentCode || !isDirty()) return;
   const note = document.getElementById('notes-input').value;
-  const counselor_name = document.getElementById('counselor-select')?.value || '';
+  const sel = document.getElementById('counselor-select');
+  const counselor_id = sel?.value ? parseInt(sel.value) : null;
+  const counselor_name = sel?.selectedOptions[0]?.textContent?.replace(' (삭제됨)', '') || '';
   fetch('/api/note/' + encodeURIComponent(currentCode), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ note, counselor_name }),
+    body: JSON.stringify({ note, counselor_id, counselor_name }),
   }).then(() => {
     savedNote = note;
-    savedCounselor = counselor_name;
+    savedCounselorId = sel?.value || '';
     checkDirty();
     const saved = document.getElementById('notes-saved');
     saved.style.display = 'inline';

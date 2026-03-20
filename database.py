@@ -124,12 +124,12 @@ def get_analyses_list(limit: int = 50, offset: int = 0, search: str = "") -> dic
     return {"total": total, "items": items}
 
 
-def save_consultant_note(diagnosis_code: str, note: str, counselor_name: str = ""):
+def save_consultant_note(diagnosis_code: str, note: str, counselor_id: int = None, counselor_name: str = ""):
     analysis = Analysis.query.filter_by(diagnosis_code=diagnosis_code).first()
     if analysis:
         analysis.consultant_notes = note
-        if counselor_name is not None:
-            analysis.counselor_name = counselor_name
+        analysis.counselor_id = counselor_id
+        analysis.counselor_name = counselor_name
         db.session.commit()
 
 
