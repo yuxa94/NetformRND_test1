@@ -14,10 +14,8 @@ MATERIAL_MAP = {
 
 
 def generate_diagnosis_code() -> str:
-    """Generate AI-YYYYMMDD-XXXX format code using UUID suffix."""
-    today = datetime.now().strftime("%Y%m%d")
-    short_id = uuid.uuid4().hex[:6].upper()
-    return f"AI-{today}-{short_id}"
+    """Generate 6-char uppercase hex code (e.g. A3F1B2)."""
+    return uuid.uuid4().hex[:6].upper()
 
 
 def save_analysis(result: dict, orig_img_bytes: bytes, diagnosis_code: str) -> int:
@@ -126,10 +124,12 @@ def get_analyses_list(limit: int = 50, offset: int = 0, search: str = "") -> dic
     return {"total": total, "items": items}
 
 
-def save_consultant_note(diagnosis_code: str, note: str):
+def save_consultant_note(diagnosis_code: str, note: str, counselor_name: str = ""):
     analysis = Analysis.query.filter_by(diagnosis_code=diagnosis_code).first()
     if analysis:
         analysis.consultant_notes = note
+        if counselor_name is not None:
+            analysis.counselor_name = counselor_name
         db.session.commit()
 
 

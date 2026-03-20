@@ -10,7 +10,7 @@ import config  # noqa: F401 — loads environment-specific .env
 from flask import Flask, request, jsonify, send_from_directory, send_file, render_template, session, redirect, url_for
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, ConstructionMethod, Specification, AdminAuth
+from models import db, ConstructionMethod, Specification, AdminAuth, Counselor
 from defect_analyzer import analyze_defect, generate_repaired_image
 from database import (
     generate_diagnosis_code, save_analysis, update_repaired_image,
@@ -236,8 +236,10 @@ def api_lookup(code):
 # ── API: save consultant note
 @app.route("/api/note/<code>", methods=["POST"])
 def api_note(code):
-    note = (request.json or {}).get("note", "")
-    save_consultant_note(code.upper(), note)
+    d = request.json or {}
+    note = d.get("note", "")
+    counselor_name = d.get("counselor_name", "")
+    save_consultant_note(code.upper(), note, counselor_name)
     return jsonify({"ok": True})
 
 
@@ -381,6 +383,55 @@ def api_specs_update(sid):
 def api_specs_delete(sid):
     s = Specification.query.get_or_404(sid)
     s.deleted_at = datetime.now()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+# ── API: counselors CRUD
+@app.route("/api/counselors")
+def api_counselors_list():
+    rows = Counselor.query.filter(Counselor.deleted_at.is_(None)).order_by(Counselor.id).all()
+    return jsonify([{"id": c.id, "name": c.name} for c in rows])
+
+
+@app.route("/api/counselors", methods=["POST"])
+@login_required
+def api_counselors_create():
+    d = request.json or {}
+    name = d.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "이름은 필수 항목입니다."}), 400
+    c = Counselor(name=name)
+    db.session.add(c)
+    db.session.commit()
+    return jsonify({"ok": True, "id": c.id}), 201
+
+
+@app.route("/api/counselors/<int:cid>")
+@login_required
+def api_counselors_get(cid):
+    c = Counselor.query.get_or_404(cid)
+    return jsonify({"id": c.id, "name": c.name})
+
+
+@app.route("/api/counselors/<int:cid>", methods=["PUT"])
+@login_required
+def api_counselors_update(cid):
+    c = Counselor.query.get_or_404(cid)
+    d = request.json or {}
+    name = d.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "이름은 필수 항목입니다."}), 400
+    c.name = name
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/counselors/<int:cid>", methods=["DELETE"])
+@login_required
+def api_counselors_delete(cid):
+    c = Counselor.query.get_or_404(cid)
+    c.deleted_at = datetime.now()
     db.session.commit()
     return jsonify({"ok": True})
 

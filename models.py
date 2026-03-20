@@ -25,6 +25,7 @@ class Analysis(db.Model):
     original_image_path = db.Column(db.String(500))
     repaired_image_path = db.Column(db.String(500))
     consultant_notes = db.Column(db.Text, default="")
+    counselor_name = db.Column(db.String(50), default="")
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -49,6 +50,14 @@ class Specification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     method_name = db.Column(db.String(100), nullable=False, index=True)
     spec_link = db.Column(db.String(500))
+    deleted_at = db.Column(db.DateTime, nullable=True, default=None)
+
+
+class Counselor(db.Model):
+    __tablename__ = "counselors"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
     deleted_at = db.Column(db.DateTime, nullable=True, default=None)
 
 

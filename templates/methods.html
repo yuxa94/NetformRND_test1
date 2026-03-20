@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>POUR AI — 공법 관리</title>
+<title>POUR AI — 공법/상담 관리</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F4FF;color:#1E293B;min-height:100vh;}
@@ -97,11 +97,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div class="hdr">
   <div class="hdr-logo">POUR AI</div>
-  <div class="hdr-title">공법 관리</div>
+  <div class="hdr-title">공법/상담 관리</div>
   <nav class="hdr-nav">
     <a href="/admin">관리자 대시보드</a>
-    <a href="/consult">상담원 조회</a>
-    <a href="/methods">공법 관리</a>
+    <a href="/consult">접수/상담 조회</a>
+    <a href="/methods">공법/상담 관리</a>
     <a href="/account">계정 관리</a>
     <a href="/logout" style="opacity:.6">로그아웃</a>
   </nav>
@@ -111,8 +111,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   <!-- Tabs -->
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('methods')">보수공법</button>
-    <button class="tab-btn" onclick="switchTab('specs')">시방서</button>
+    <button class="tab-btn active" data-tab="methods" onclick="switchTab('methods')">보수공법</button>
+    <button class="tab-btn" data-tab="specs" onclick="switchTab('specs')">시방서</button>
+    <button class="tab-btn" data-tab="counselors" onclick="switchTab('counselors')">상담원 관리</button>
   </div>
 
   <!-- ─────────────────────────────────────── 보수공법 Panel -->
@@ -171,6 +172,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>
 
+  <!-- ─────────────────────────────────────── 상담원 Panel -->
+  <div id="panel-counselors" class="panel">
+    <div class="panel-desc">접수/상담 조회 페이지에서 상담 메모 작성 시, 아래 목록에서 상담원을 선택할 수 있습니다. 담당자가 변경되면 이 목록을 최신 상태로 유지해 주세요.</div>
+    <div class="toolbar">
+      <button class="btn-add" onclick="openModal('counselors', null)">+ 추가</button>
+    </div>
+    <div class="table-card">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody id="counselors-tbody">
+          <tr><td colspan="2"><div class="empty"><span class="spinner"></span>불러오는 중…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <!-- ─────────────────────────────────────── Modal -->
@@ -188,18 +210,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentTab = 'methods';
-let modalMode  = null;   // 'methods' | 'specs'
+let modalMode  = null;   // 'methods' | 'specs' | 'counselors'
 let editingId  = null;   // null = add, number = edit
 let debounceTimer = null;
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(tab) {
   currentTab = tab;
-  document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['methods','specs'][i] === tab);
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
   });
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + tab).classList.add('active');
+  const url = new URL(window.location);
+  url.searchParams.set('tab', tab);
+  history.replaceState(null, '', url);
 }
 
 // ── Search debounce ───────────────────────────────────────────────────────────
@@ -217,12 +242,14 @@ async function apiFetch(url, opts = {}) {
 
 // ── Load data ─────────────────────────────────────────────────────────────────
 async function loadData(tab) {
-  const search = document.getElementById(tab + '-search').value.trim();
-  const url    = tab === 'methods'
-    ? '/api/methods' + (search ? '?search=' + encodeURIComponent(search) : '')
-    : '/api/specs'   + (search ? '?search=' + encodeURIComponent(search) : '');
+  const searchEl = document.getElementById(tab + '-search');
+  const search = searchEl ? searchEl.value.trim() : '';
+  let url;
+  if (tab === 'methods') url = '/api/methods' + (search ? '?search=' + encodeURIComponent(search) : '');
+  else if (tab === 'specs') url = '/api/specs' + (search ? '?search=' + encodeURIComponent(search) : '');
+  else url = '/api/counselors';
   const tbody = document.getElementById(tab + '-tbody');
-  const cols  = tab === 'methods' ? 7 : 3;
+  const cols  = tab === 'methods' ? 7 : tab === 'specs' ? 3 : 2;
   tbody.innerHTML = `<tr><td colspan="${cols}"><div class="empty"><span class="spinner"></span>불러오는 중…</div></td></tr>`;
   try {
     const data = await apiFetch(url);
@@ -244,7 +271,7 @@ function linkCell(url) {
 
 function renderRows(tab, data) {
   const tbody = document.getElementById(tab + '-tbody');
-  const cols  = tab === 'methods' ? 7 : 3;
+  const cols  = tab === 'methods' ? 7 : tab === 'specs' ? 3 : 2;
   if (!data || data.length === 0) {
     tbody.innerHTML = `<tr><td colspan="${cols}"><div class="empty">데이터가 없습니다.</div></td></tr>`;
     return;
@@ -265,7 +292,7 @@ function renderRows(tab, data) {
           </div>
         </td>
       </tr>`).join('');
-  } else {
+  } else if (tab === 'specs') {
     tbody.innerHTML = data.map(row => `
       <tr>
         <td><strong>${esc(row.method_name)}</strong></td>
@@ -277,15 +304,26 @@ function renderRows(tab, data) {
           </div>
         </td>
       </tr>`).join('');
+  } else {
+    tbody.innerHTML = data.map(row => `
+      <tr>
+        <td><strong>${esc(row.name)}</strong></td>
+        <td>
+          <div class="row-actions">
+            <button class="btn-edit" onclick="openModal('counselors', ${row.id})">수정</button>
+            <button class="btn-del"  onclick="deleteRow('counselors', ${row.id})">삭제</button>
+          </div>
+        </td>
+      </tr>`).join('');
   }
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
 async function deleteRow(tab, id) {
   if (!window.confirm('삭제하시겠습니까?')) return;
-  const url = tab === 'methods' ? `/api/methods/${id}` : `/api/specs/${id}`;
+  const urlMap = { methods: `/api/methods/${id}`, specs: `/api/specs/${id}`, counselors: `/api/counselors/${id}` };
   try {
-    await apiFetch(url, { method: 'DELETE' });
+    await apiFetch(urlMap[tab], { method: 'DELETE' });
     loadData(tab);
   } catch (e) {
     alert('삭제 중 오류가 발생했습니다.\n' + e.message);
@@ -296,8 +334,9 @@ async function deleteRow(tab, id) {
 function openModal(tab, id) {
   modalMode = tab;
   editingId = id;
+  const tabNames = { methods: '보수공법', specs: '시방서', counselors: '상담원' };
   document.getElementById('modal-title').textContent =
-    (id ? '수정' : '추가') + ' — ' + (tab === 'methods' ? '보수공법' : '시방서');
+    (id ? '수정' : '추가') + ' — ' + tabNames[tab];
 
   const body = document.getElementById('modal-body');
 
@@ -329,7 +368,7 @@ function openModal(tab, id) {
         <div class="form-label">예제링크 <span style="font-weight:400;opacity:.7">(선택)</span></div>
         <input id="f-example_url" class="form-input" placeholder="https://" />
       </div>`;
-  } else {
+  } else if (tab === 'specs') {
     body.innerHTML = `
       <div class="form-row">
         <div class="form-label">공법명</div>
@@ -339,12 +378,18 @@ function openModal(tab, id) {
         <div class="form-label">시방서 링크</div>
         <input id="f-spec_url" class="form-input" placeholder="https://" />
       </div>`;
+  } else {
+    body.innerHTML = `
+      <div class="form-row">
+        <div class="form-label">상담원 이름</div>
+        <input id="f-counselor-name" class="form-input" placeholder="이름 입력" />
+      </div>`;
   }
 
   // If editing, fetch and populate
   if (id) {
-    const url = tab === 'methods' ? `/api/methods/${id}` : `/api/specs/${id}`;
-    apiFetch(url).then(row => {
+    const urlMap = { methods: `/api/methods/${id}`, specs: `/api/specs/${id}`, counselors: `/api/counselors/${id}` };
+    apiFetch(urlMap[tab]).then(row => {
       if (tab === 'methods') {
         setValue('f-code',        row.code);
         setValue('f-name',        row.method_name);
@@ -352,9 +397,11 @@ function openModal(tab, id) {
         setValue('f-composition', row.core_composition);
         setValue('f-advantage',   row.key_advantages);
         setValue('f-example_url', row.example_link);
-      } else {
+      } else if (tab === 'specs') {
         setValue('f-name',     row.method_name);
         setValue('f-spec_url', row.spec_link);
+      } else {
+        setValue('f-counselor-name', row.name);
       }
     }).catch(e => {
       alert('데이터를 불러오지 못했습니다.\n' + e.message);
@@ -395,17 +442,24 @@ async function saveModal() {
     const example_url = document.getElementById('f-example_url')?.value.trim();
     if (!code || !name) { alert('코드와 공법명은 필수 항목입니다.'); return; }
     body = { code, method_name: name, main_use: use_case, core_composition: composition, key_advantages: advantage, example_link: example_url };
-  } else {
+  } else if (tab === 'specs') {
     const name     = document.getElementById('f-name')?.value.trim();
     const spec_url = document.getElementById('f-spec_url')?.value.trim();
     if (!name) { alert('공법명은 필수 항목입니다.'); return; }
     body = { method_name: name, spec_link: spec_url };
+  } else {
+    const cname = document.getElementById('f-counselor-name')?.value.trim();
+    if (!cname) { alert('이름은 필수 항목입니다.'); return; }
+    body = { name: cname };
   }
 
   const isEdit = editingId !== null;
-  const url = tab === 'methods'
-    ? (isEdit ? `/api/methods/${editingId}` : '/api/methods')
-    : (isEdit ? `/api/specs/${editingId}`   : '/api/specs');
+  const urlMap = {
+    methods:    isEdit ? `/api/methods/${editingId}` : '/api/methods',
+    specs:      isEdit ? `/api/specs/${editingId}`   : '/api/specs',
+    counselors: isEdit ? `/api/counselors/${editingId}` : '/api/counselors',
+  };
+  const url = urlMap[tab];
   const method = isEdit ? 'PUT' : 'POST';
 
   try {
@@ -422,8 +476,13 @@ async function saveModal() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+const initTab = new URLSearchParams(window.location.search).get('tab');
+if (initTab && ['methods', 'specs', 'counselors'].includes(initTab)) {
+  switchTab(initTab);
+}
 loadData('methods');
 loadData('specs');
+loadData('counselors');
 
 // Close modal on Escape
 document.addEventListener('keydown', e => {
