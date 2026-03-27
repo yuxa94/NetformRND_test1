@@ -20,10 +20,22 @@ from database import (
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__, static_folder="templates", template_folder="templates")
-app.secret_key = os.environ.get("SECRET_KEY", os.urandom(32).hex())
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    _secret = os.urandom(32).hex()
+    print(f"[WARNING] SECRET_KEY not found in env — using random key (sessions will NOT persist across restarts)")
+else:
+    print(f"[config] SECRET_KEY loaded ({_secret[:8]}...)")
+app.secret_key = _secret
 _default_db = "sqlite:///" + os.path.join(BASE_DIR, "data.db")
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", _default_db)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 db.init_app(app)
 
@@ -46,10 +58,12 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("authenticated"):
+            print(f"[auth] BLOCKED {request.path} — session has no 'authenticated' key. session keys={list(session.keys())}")
             return redirect(url_for("login", next=request.path))
         # Check session expiry
         expires = session.get("expires_at")
         if expires and datetime.fromisoformat(expires) < datetime.now():
+            print(f"[auth] BLOCKED {request.path} — session expired at {expires}")
             session.clear()
             return redirect(url_for("login", next=request.path))
         return f(*args, **kwargs)
