@@ -93,7 +93,8 @@ def _repair_worker(job_id: str, image_bytes: bytes, defect_result: dict, diagnos
 
 @app.route("/")
 def index():
-    return send_from_directory("templates", "index.html")
+    source = request.args.get("source", "")
+    return render_template("index.html", source=source)
 
 
 @app.route("/analyze", methods=["POST"])
@@ -119,8 +120,10 @@ def analyze():
     finally:
         os.unlink(tmp_path)
 
-    # Generate diagnosis code and save to DB
-    diagnosis_code = generate_diagnosis_code()
+    # Generate diagnosis code with source-based prefix
+    source = request.form.get("source", "")
+    prefix = "S-" if source == "pour-store" else "P-"
+    diagnosis_code = prefix + generate_diagnosis_code()
     try:
         _, diagnosis_code = save_analysis(result, image_bytes, diagnosis_code)
     except Exception as e:

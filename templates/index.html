@@ -750,6 +750,8 @@ body{
 let selectedFile = null;
 let pollInterval = null;
 let exampleLink = null;
+const SOURCE = new URLSearchParams(window.location.search).get('source') || '{{ source }}';
+const CONSULT_TEL = SOURCE === 'pour-store' ? 'tel:18008203' : 'tel:16006404';
 
 function setTabs(active) {
   document.getElementById('tab-upload').classList.toggle('on', active === 'upload');
@@ -775,7 +777,7 @@ function go(n) {
   } else if (n === 4) {
     const href = exampleLink || '#';
     const cls = exampleLink ? '' : ' disabled';
-    cta.innerHTML = `<div class="bot" style="flex-direction:column;gap:8px;"><div style="display:flex;gap:8px;"><a class="bot-o${cls}" href="${href}" target="_blank" rel="noopener">시공 사례</a><a class="bot-f" href="tel:16006404">전문가 상담</a></div><button class="bot-o" onclick="resetApp()">다시 분석하기</button></div>`;
+    cta.innerHTML = `<div class="bot" style="flex-direction:column;gap:8px;"><div style="display:flex;gap:8px;"><a class="bot-o${cls}" href="${href}" target="_blank" rel="noopener">시공 사례</a><a class="bot-f" href="${CONSULT_TEL}">전문가 상담</a></div><button class="bot-o" onclick="resetApp()">다시 분석하기</button></div>`;
   }
 }
 
@@ -783,11 +785,16 @@ function go(n) {
 const fileInput = document.getElementById('file-input');
 const dropZone  = document.getElementById('drop-zone');
 
+// Prevent browser default drag behavior (opening image in new tab)
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => e.preventDefault());
+
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', e => {
   e.preventDefault();
+  e.stopPropagation();
   dropZone.classList.remove('dragover');
   const file = e.dataTransfer.files[0];
   if (file && file.type.startsWith('image/')) setFile(file);
@@ -849,6 +856,7 @@ async function startAnalysis() {
   const formData = new FormData();
   formData.append('image', selectedFile);
   formData.append('description', document.getElementById('description').value);
+  formData.append('source', SOURCE);
 
   try {
     const res = await fetch('/analyze', { method: 'POST', body: formData });
