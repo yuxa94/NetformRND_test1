@@ -843,9 +843,14 @@
       }
       .diag-panel {
         margin-top: 10px;
-        padding: 14px 16px;
+        padding: 16px 18px;
         border-radius: 13px;
         background: linear-gradient(135deg, #2b5cff 0%, #3b82f6 100%);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .diag-panel-top {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -860,6 +865,24 @@
         font-weight: 800;
         color: white;
         letter-spacing: 0.5px;
+      }
+      .diag-panel-hint {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.15);
+        font-size: 12px;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.9);
+        line-height: 1.4;
+      }
+      .diag-panel-hint svg {
+        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
+        fill: rgba(255, 255, 255, 0.85);
       }
       .after-loading {
         position: absolute;
@@ -1672,8 +1695,14 @@
                 <span>이미지를 탭하면 크게 볼 수 있어요</span>
               </div>
               <div class="diag-panel" id="diag-panel" style="display: none">
-                <div class="diag-panel-label">진단코드</div>
-                <div class="diag-panel-code" id="diag-panel-code"></div>
+                <div class="diag-panel-top">
+                  <div class="diag-panel-label">진단코드</div>
+                  <div class="diag-panel-code" id="diag-panel-code"></div>
+                </div>
+                <div class="diag-panel-hint">
+                  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                  <span>상담 시 위 진단코드를 알려주시면 빠른 상담이 가능합니다</span>
+                </div>
               </div>
             </div>
           </div>
