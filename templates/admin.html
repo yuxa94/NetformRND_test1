@@ -40,6 +40,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .chart-card{background:var(--card);border-radius:16px;padding:20px;border:1px solid var(--border);}
 .chart-card.full{grid-column:1/-1;}
 .chart-title{font-size:13px;font-weight:700;color:var(--sub);margin-bottom:16px;}
+.chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.chart-head .chart-title{margin-bottom:0;}
+.trend-toggle{display:inline-flex;background:#F1F5F9;border-radius:8px;padding:3px;}
+.trend-toggle button{border:0;background:transparent;font-size:12px;font-weight:600;color:var(--sub);padding:5px 12px;border-radius:6px;cursor:pointer;font-family:inherit;}
+.trend-toggle button.active{background:white;color:var(--blue);box-shadow:0 1px 2px rgba(0,0,0,.06);}
+.trend-toggle button:disabled{opacity:.35;cursor:not-allowed;}
+.export-btn{height:30px;padding:0 12px;border:1px solid var(--border);background:white;color:var(--sub);font-size:12px;font-weight:600;font-family:inherit;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:.15s;}
+.export-btn:hover{border-color:var(--blue);color:var(--blue);}
 .chart-wrap{position:relative;height:220px;}
 
 /* Empty state */
@@ -80,7 +88,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <option value="아스팔트슁글">아스팔트슁글</option>
       <option value="기타">기타</option>
     </select>
-    <button onclick="loadStats()">조회</button>
+    <select id="f-source">
+      <option value="solution" selected>솔루션</option>
+      <option value="store">스토어</option>
+    </select>
+    <button class="export-btn" style="margin-left:auto;" onclick="exportAll()">CSV 내보내기</button>
   </div>
 
   <!-- Summary cards -->
@@ -98,7 +110,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <!-- Charts -->
   <div class="chart-grid">
     <div class="chart-card full">
-      <div class="chart-title">분석 건수 추이</div>
+      <div class="chart-head">
+        <div class="chart-title">분석 건수 추이</div>
+        <div class="trend-toggle" id="trend-toggle">
+          <button type="button" data-grain="month">월별</button>
+          <button type="button" data-grain="day">일별</button>
+        </div>
+      </div>
       <div class="chart-wrap"><canvas id="ch-trend"></canvas></div>
     </div>
     <div class="chart-card">
@@ -119,6 +137,8 @@ const DEFECT_LABELS = {
 };
 
 let trendChart, materialChart, defectChart;
+let lastStats = null;
+let trendGrain = 'month'; // 'month' | 'day'
 
 function buildFilters() {
   const yearSel = document.getElementById('f-year');
@@ -135,7 +155,9 @@ function getParams() {
   const year = document.getElementById('f-year').value;
   const period = document.getElementById('f-period').value;
   const material = document.getElementById('f-material').value;
+  const source = document.getElementById('f-source').value;
   const params = new URLSearchParams({ year, material });
+  if (source) params.set('source', source);
   if (period === 'year') { /* no month/quarter */ }
   else if (period.startsWith('q')) params.set('quarter', period[1]);
   else params.set('month', period);
@@ -144,33 +166,60 @@ function getParams() {
 
 function destroyChart(c) { if (c) c.destroy(); }
 
+function syncTrendToggle() {
+  const period = document.getElementById('f-period').value;
+  const toggle = document.getElementById('trend-toggle');
+  const buttons = toggle.querySelectorAll('button');
+  // year: month only (no toggle); quarter: both; month: day only
+  let allowed;
+  if (period === 'year') allowed = ['month'];
+  else if (period.startsWith('q')) allowed = ['month', 'day'];
+  else allowed = ['day'];
+
+  if (!allowed.includes(trendGrain)) trendGrain = allowed[0];
+
+  toggle.style.display = allowed.length > 1 ? '' : 'none';
+
+  buttons.forEach(b => {
+    const g = b.dataset.grain;
+    b.disabled = !allowed.includes(g);
+    b.classList.toggle('active', g === trendGrain);
+  });
+}
+
+function renderTrendChart() {
+  if (!lastStats) return;
+  const trendData = trendGrain === 'month' ? lastStats.monthly : lastStats.daily;
+  const trendLabels = trendData.map(d => d.month || d.day);
+  const trendCounts = trendData.map(d => d.count);
+
+  destroyChart(trendChart);
+  trendChart = new Chart(document.getElementById('ch-trend'), {
+    type: 'bar',
+    data: {
+      labels: trendLabels.length ? trendLabels : ['데이터 없음'],
+      datasets: [{
+        label: '분석 건수',
+        data: trendCounts.length ? trendCounts : [0],
+        backgroundColor: 'rgba(37,99,235,.7)',
+        borderRadius: 6,
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+}
+
 function loadStats() {
   fetch('/api/stats?' + getParams())
     .then(r => r.json())
     .then(data => {
+      lastStats = data;
       document.getElementById('c-total').textContent = data.total ?? 0;
       document.getElementById('c-danger').textContent = data.danger ?? 0;
 
-      const period = document.getElementById('f-period').value;
-      const trendData = period === 'year' ? data.monthly : data.daily;
-      const trendLabels = trendData.map(d => d.month || d.day);
-      const trendCounts = trendData.map(d => d.count);
-
-      destroyChart(trendChart);
-      trendChart = new Chart(document.getElementById('ch-trend'), {
-        type: 'bar',
-        data: {
-          labels: trendLabels.length ? trendLabels : ['데이터 없음'],
-          datasets: [{
-            label: '분석 건수',
-            data: trendCounts.length ? trendCounts : [0],
-            backgroundColor: 'rgba(37,99,235,.7)',
-            borderRadius: 6,
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
-      });
+      syncTrendToggle();
+      renderTrendChart();
 
       // Material pie
       const matLabels = data.material_breakdown.map(m => m.material || '기타');
@@ -210,6 +259,69 @@ function loadStats() {
     })
     .catch(e => console.error(e));
 }
+
+function filterSuffix() {
+  const year = document.getElementById('f-year').value;
+  const period = document.getElementById('f-period').value;
+  const source = document.getElementById('f-source').value;
+  return `${year}_${period}_${source}`;
+}
+
+function exportAll() {
+  if (!lastStats) return;
+  const escape = (v) => {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [];
+  const addSection = (title, headers, rows) => {
+    lines.push(`[${title}]`);
+    lines.push(headers.map(escape).join(','));
+    if (rows.length) rows.forEach(r => lines.push(r.map(escape).join(',')));
+    else lines.push('데이터 없음');
+    lines.push('');
+  };
+
+  const trend = trendGrain === 'month' ? lastStats.monthly : lastStats.daily;
+  const trendKey = trendGrain === 'month' ? '월' : '일자';
+  addSection(
+    '분석 건수 추이',
+    [trendKey, '건수'],
+    trend.map(d => [d.month || d.day, d.count]),
+  );
+  addSection(
+    '자재 유형별 비율',
+    ['자재', '건수'],
+    lastStats.material_breakdown.map(m => [m.material || '기타', m.count]),
+  );
+  addSection(
+    '하자 코드별 분포',
+    ['하자코드', '건수'],
+    lastStats.defect_breakdown.map(d => [DEFECT_LABELS[d.code] || d.code || '기타', d.count]),
+  );
+
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `관리자대시보드_${filterSuffix()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('trend-toggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn || btn.disabled) return;
+  trendGrain = btn.dataset.grain;
+  syncTrendToggle();
+  renderTrendChart();
+});
+
+['f-year','f-period','f-material','f-source'].forEach(id => {
+  document.getElementById(id).addEventListener('change', loadStats);
+});
 
 buildFilters();
 loadStats();

@@ -87,7 +87,7 @@ def get_analysis_by_code(diagnosis_code: str) -> dict | None:
     return d
 
 
-def get_analyses_list(limit: int = 50, offset: int = 0, search: str = "") -> dict:
+def get_analyses_list(limit: int = 50, offset: int = 0, search: str = "", source: str = "") -> dict:
     """Return paginated list of analyses (lightweight, no images)."""
     query = Analysis.query
 
@@ -100,6 +100,11 @@ def get_analyses_list(limit: int = 50, offset: int = 0, search: str = "") -> dic
                 Analysis.summary.like(like),
             )
         )
+
+    if source == "solution":
+        query = query.filter(Analysis.diagnosis_code.like("P-%"))
+    elif source == "store":
+        query = query.filter(Analysis.diagnosis_code.like("S-%"))
 
     total = query.count()
     rows = (
@@ -138,8 +143,8 @@ def _base_filters():
     return []
 
 
-def get_stats(year: int = None, month: int = None, quarter: int = None, material: str = None) -> dict:
-    """Return stats for admin dashboard. Filters: year, month, quarter, material."""
+def get_stats(year: int = None, month: int = None, quarter: int = None, material: str = None, source: str = None) -> dict:
+    """Return stats for admin dashboard. Filters: year, month, quarter, material, source."""
     now = datetime.now()
     year = year or now.year
 
@@ -154,6 +159,11 @@ def get_stats(year: int = None, month: int = None, quarter: int = None, material
 
     if material and material != "전체":
         filters.append(Analysis.material_type == material)
+
+    if source == "solution":
+        filters.append(Analysis.diagnosis_code.like("P-%"))
+    elif source == "store":
+        filters.append(Analysis.diagnosis_code.like("S-%"))
 
     # Use subquery for filtered IDs to avoid N+1
     id_subquery = db.session.query(Analysis.id).filter(*filters).subquery()

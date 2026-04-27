@@ -10,7 +10,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 :root{--blue:#2563EB;--blue-light:#EFF6FF;--border:#E2E8F0;--card:#fff;--text:#1E293B;--sub:#64748B;--red:#EF4444;}
 
 /* Header */
-.hdr{background:var(--blue);color:white;padding:16px 24px;display:flex;align-items:center;gap:12px;}
+.hdr{background:var(--blue);color:white;padding:16px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10;}
 .hdr-logo{font-size:18px;font-weight:800;letter-spacing:-.5px;}
 .hdr-title{font-size:14px;opacity:.8;}
 .hdr-nav{margin-left:auto;display:flex;gap:12px;}
@@ -21,11 +21,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .layout{display:grid;grid-template-columns:360px 1fr;gap:16px;max-width:1120px;margin:0 auto;padding:24px 20px;align-items:start;}
 @media(max-width:760px){.layout{grid-template-columns:1fr;}}
 
+/* Left column — sticky to viewport so only the right side scrolls */
+.left-col{position:sticky;top:calc(var(--hdr-h, 60px) + 16px);height:calc(100vh - var(--hdr-h, 60px) - 32px);display:flex;flex-direction:column;min-height:0;}
+@media(max-width:760px){.left-col{position:static;height:auto;}}
+
 /* Left panel */
-.panel-card{background:var(--card);border-radius:16px;border:1px solid var(--border);overflow:hidden;}
+.panel-card{background:var(--card);border-radius:16px;border:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column;min-height:0;flex:1;}
 .panel-hdr{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
 .panel-hdr-title{font-size:13px;font-weight:700;color:var(--text);}
 .panel-total{font-size:12px;color:var(--sub);}
+
+/* Source tabs */
+.src-tabs{display:flex;gap:4px;padding:10px 14px 0;}
+.src-tab{flex:1;height:32px;border:0;background:transparent;font-size:12px;font-weight:600;color:var(--sub);border-radius:8px;cursor:pointer;font-family:inherit;transition:.15s;}
+.src-tab:hover{background:#F1F5F9;}
+.src-tab.active{background:var(--blue-light);color:var(--blue);}
 
 /* Search bar */
 .search-wrap{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;}
@@ -35,12 +45,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* Code search row */
 .code-wrap{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;}
-.code-input{flex:1;height:38px;padding:0 12px;border-radius:10px;border:1.5px solid var(--border);font-size:13px;font-family:inherit;color:var(--text);outline:none;transition:.2s;letter-spacing:.5px;}
-.code-input:focus{border-color:var(--blue);}
+.code-field{flex:1;display:flex;align-items:center;height:38px;border-radius:10px;border:1.5px solid var(--border);background:white;transition:.2s;overflow:hidden;}
+.code-field:focus-within{border-color:var(--blue);}
+.code-prefix{padding:0 10px 0 12px;font-size:13px;font-weight:700;color:var(--blue);background:var(--blue-light);height:100%;display:flex;align-items:center;letter-spacing:.5px;}
+.code-input{flex:1;height:100%;padding:0 12px;border:0;font-size:13px;font-family:inherit;color:var(--text);outline:none;letter-spacing:.5px;background:transparent;}
 .code-label{font-size:10px;font-weight:700;color:var(--sub);padding:0 14px 6px;margin-top:10px;display:block;}
 
 /* List */
-.list{max-height:calc(100vh - 260px);overflow-y:auto;}
+.list{flex:1;overflow-y:auto;min-height:0;}
+@media(max-width:760px){.list{max-height:calc(100vh - 260px);}}
 .list-item{padding:14px 18px;border-bottom:1px solid var(--border);cursor:pointer;transition:.15s;}
 .list-item:last-child{border-bottom:none;}
 .list-item:hover{background:#F8FAFC;}
@@ -108,11 +121,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div class="layout">
   <!-- LEFT: list + search -->
-  <div>
+  <div class="left-col">
     <div class="panel-card">
       <div class="panel-hdr">
         <div class="panel-hdr-title">분석 이력</div>
         <div class="panel-total" id="list-total"></div>
+      </div>
+
+      <!-- 유입경로 탭 -->
+      <div class="src-tabs" id="src-tabs">
+        <button class="src-tab active" data-source="solution">솔루션</button>
+        <button class="src-tab" data-source="store">스토어</button>
       </div>
 
       <!-- 키워드 검색 -->
@@ -125,8 +144,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <!-- 진단코드 직접 조회 -->
       <span class="code-label">진단코드 직접 입력</span>
       <div class="code-wrap">
-        <input class="code-input" id="code-input" placeholder="A3F1B2"
-          onkeydown="if(event.key==='Enter') lookupByCode()">
+        <div class="code-field">
+          <span class="code-prefix" id="code-prefix">P-</span>
+          <input class="code-input" id="code-input" placeholder="A3F1B2"
+            onkeydown="if(event.key==='Enter') lookupByCode()">
+        </div>
         <button class="search-btn" onclick="lookupByCode()">조회</button>
       </div>
 
@@ -147,11 +169,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <script>
+function syncHeaderHeight() {
+  const h = document.querySelector('.hdr')?.offsetHeight || 60;
+  document.documentElement.style.setProperty('--hdr-h', h + 'px');
+}
+syncHeaderHeight();
+window.addEventListener('resize', syncHeaderHeight);
+
 const URGENCY_CLS = { '위험': 'danger', '높음': 'warn' };
 const PAGE_SIZE = 20;
 let currentPage = 0;
 let currentSearch = '';
 let currentCode = '';
+let currentSource = 'solution';
 
 // ── List ─────────────────────────────────────────
 function searchList() {
@@ -165,9 +195,20 @@ function changePage(dir) {
   loadList();
 }
 
+function setSource(src) {
+  currentSource = src;
+  document.querySelectorAll('#src-tabs .src-tab').forEach(b => {
+    b.classList.toggle('active', (b.dataset.source || '') === src);
+  });
+  document.getElementById('code-prefix').textContent = src === 'store' ? 'S-' : 'P-';
+  currentPage = 0;
+  loadList();
+}
+
 function loadList() {
   const offset = currentPage * PAGE_SIZE;
   const params = new URLSearchParams({ limit: PAGE_SIZE, offset, search: currentSearch });
+  if (currentSource) params.set('source', currentSource);
   fetch('/api/analyses?' + params)
     .then(r => r.json())
     .then(data => {
@@ -202,9 +243,23 @@ function loadList() {
 
 // ── Code direct lookup ────────────────────────────
 function lookupByCode() {
-  const code = document.getElementById('code-input').value.trim().toUpperCase();
-  if (!code) return;
-  loadDetail(code);
+  const raw = document.getElementById('code-input').value.trim().toUpperCase();
+  const prefix = currentSource === 'store' ? 'S-' : 'P-';
+  // 빈 입력 → 검색 초기화하고 전체 리스트
+  if (!raw) {
+    currentSearch = '';
+    currentPage = 0;
+    loadList();
+    return;
+  }
+  // 6자리 풀 코드면 정확 조회, 그 외엔 키워드 검색으로 폴백 (kw-input은 건드리지 않음)
+  if (/^[A-Z0-9]{6}$/.test(raw)) {
+    loadDetail(prefix + raw);
+  } else {
+    currentSearch = prefix + raw;
+    currentPage = 0;
+    loadList();
+  }
 }
 
 // ── Detail ────────────────────────────────────────
@@ -407,6 +462,11 @@ window.addEventListener('beforeunload', e => {
 });
 
 // Init
+document.getElementById('src-tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.src-tab');
+  if (!btn) return;
+  setSource(btn.dataset.source || '');
+});
 loadList();
 const initCode = new URLSearchParams(window.location.search).get('code');
 if (initCode) loadDetail(initCode.toUpperCase());

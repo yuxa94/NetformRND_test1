@@ -223,7 +223,8 @@ def api_analyses():
     limit  = request.args.get("limit", 50, type=int)
     offset = request.args.get("offset", 0, type=int)
     search = request.args.get("search", "")
-    return jsonify(get_analyses_list(limit=limit, offset=offset, search=search))
+    source = request.args.get("source", "")
+    return jsonify(get_analyses_list(limit=limit, offset=offset, search=search, source=source))
 
 
 # ── API: stats for admin dashboard
@@ -233,7 +234,8 @@ def api_stats():
     month = request.args.get("month", type=int)
     quarter = request.args.get("quarter", type=int)
     material = request.args.get("material", "전체")
-    stats = get_stats(year=year, month=month, quarter=quarter, material=material)
+    source = request.args.get("source", "")
+    stats = get_stats(year=year, month=month, quarter=quarter, material=material, source=source)
     return jsonify(stats)
 
 
