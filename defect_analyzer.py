@@ -299,7 +299,7 @@ def generate_repaired_image(image_bytes: bytes, defect_result: dict) -> tuple:
         prompt_key = None
 
     prompt = _REPAIR_PROMPTS.get(prompt_key, "Make the space brand new condition.")
-    model = "gemini-3-pro-image-preview" if prompt_key == "RT" else "gemini-2.5-flash-image"
+    model = "gemini-3-pro-image" if prompt_key == "RT" else "gemini-2.5-flash-image"
 
     # Build parts: original image sent as Base.png
     parts = [types.Part.from_bytes(data=image_bytes, mime_type="image/png")]
